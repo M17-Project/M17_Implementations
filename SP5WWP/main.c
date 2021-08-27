@@ -17,6 +17,22 @@
 const uint16_t crc_poly		=0x5935;
 uint16_t CRC_LUT[256];
 
+//Golay (24, 12) code generated with 0xC75 polynomial
+const uint16_t golay_encode_matrix[12]={
+	0x8eb,
+	0x93e,
+	0xa97,
+	0xdc6,
+	0x367,
+	0x6cd,
+	0xd99,
+	0x3da,
+	0x7b4,
+	0xf68,
+	0x63b,
+	0xc75
+};
+
 const int16_t symbol_map[4]={+1, +3, -1, -3};
 
 #include "rrc_taps.h"
@@ -107,6 +123,21 @@ uint16_t CRC_M17(uint16_t* crc_table, const uint8_t* message, uint16_t nBytes)
 	}
 
 	return(remainder);
+}
+
+uint32_t golay_coding(uint16_t m)
+{
+    uint32_t out=0;
+
+    for(uint16_t i = 0; i<12; i++)
+	{
+		if(m & (1<<i))
+	    	out ^= golay_encode_matrix[i];
+    }
+
+	out |= m<<12;
+    
+    return out;
 }
 
 void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
