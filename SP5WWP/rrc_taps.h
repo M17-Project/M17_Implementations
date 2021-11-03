@@ -1,6 +1,10 @@
 #ifndef RRC_TAPS
 #define RRC_TAPS
 
+//taps below are for f_s=48kHz
+//10 samples per symbol
+//calculated by Rob Riggs, WX9O
+
 const float rrc_coeffs[81]={
 	-0.0031957,
 	-0.00293028,

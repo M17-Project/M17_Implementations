@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#define TYPE_PKT			(0<<0)			//Packet type
+#define TYPE_PKT			0				//Packet type
 #define TYPE_STR			(1<<0)			//Stream type
 #define TYPE_RES			(0b00<<1)		//Reserved type
 #define TYPE_V				(0b10<<1)		//Type: Voice
@@ -57,6 +57,7 @@ struct LSF
 };
 
 uint16_t fn=0;
+uint8_t payload[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};	//test only
 
 //funcs
 void ypcmem(uint8_t *dst, uint8_t *src, uint16_t nBytes)
@@ -156,6 +157,17 @@ void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
 	printf("\n\n");*/
 }
 
+//pack Frame
+//arg1: frame counter (16-bit)
+//arg2: LSF struct
+//arg3: payload (packed array of bytes)
+void pack_Frame(uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *payload)
+{
+	uint8_t lich_cnt=frame_cnt%6;
+	
+	;
+}
+
 uint16_t CRC_LSF(struct LSF *lsf_in)
 {
 	uint8_t lsf_bytes[28];
@@ -176,20 +188,21 @@ void unpack_LSF(uint8_t *outp, struct LSF *lsf_in)
 		outp[i]=(lsf_bytes[i/8]>>(7-(i%8)))&1;
 }
 
-//convolve 240+4 unpacked type-1 bits into 488 type-2 bits
+//convolve "num" unpacked type-1 bits into (num+4)*2 type-2 bits
 //those 4 last bits are for shift register flushing
-//arg1: convolutionally encoded LSF type-2 bits, arg2: a pointer to unpacked 240 LSF type-1 bits
-void convolve_LSF(uint8_t *outp, uint8_t *inp)
+//arg1: convolutionally encoded type-2 bits, arg2: a pointer to unpacked type-1 bits
+//arg3: number of bits to encode (without flushing)
+void convolve(uint8_t *outp, uint8_t *inp, uint16_t num)
 {
 	//shift register for the convolutional encoder
 	uint8_t sr=0;
 	
-	//240 bits of data plus 4 "flushing" bits
-	for(uint16_t i=0; i<240+4; i++)
+	//"num" bits of data plus 4 "flushing" bits
+	for(uint16_t i=0; i<num+4; i++)
 	{
 		sr>>=1;
 		
-		if(i<240)
+		if(i<num)
 		{
 			sr|=inp[i]<<4;
 		}
@@ -199,6 +212,8 @@ void convolve_LSF(uint8_t *outp, uint8_t *inp)
 		//printf("%02X\t%d\t%d\n", sr, outp[i*2], outp[i*2+1]);
 	}
 }
+
+
 
 //puncture LSF type-2 bits into type-3 bits using P_1 puncturer scheme
 void puncture_LSF(uint8_t *outp, uint8_t *inp)
@@ -226,6 +241,31 @@ void puncture_LSF(uint8_t *outp, uint8_t *inp)
 	//printf("n=%d\n", n);
 }
 
+//puncture FRAME type-2 bits into type-3 bits using P_2 puncturer scheme
+void puncture_Frame(uint8_t *outp, uint8_t *inp)
+{
+	const uint8_t punct[12]={ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 };
+
+	//to puncture the FRAME type-3 bits properly, we have to use puncturing matrix above
+	//it has 12 elements, so we have to use them going along from the beginning to the end
+	//then again and again, giving 272 elements we need
+	
+	uint16_t n=0;	//how many bits actually went through the puncturer
+	
+	for(uint16_t i=0; i<296; i++)
+	{
+		if(punct[i%12])
+		{
+			outp[n]=inp[i];
+			n++;
+		}
+	}
+
+	//make sure we have 272
+	//printf("n=%d\n", n);
+}
+
+//interleaver and decorrelator - both are the same for all data frames
 //interleave 
 void interleave(uint8_t *outp, uint8_t *inp)
 {
@@ -247,6 +287,8 @@ void decorrelate(uint8_t *outp, uint8_t *inp)
 	}
 }
 
+//generate symbols from data
+//prepend syncword
 void symbols_LSF(int16_t *outp, uint8_t *inp)
 {
 	for(uint8_t i=0; i<8; i++)
@@ -259,15 +301,34 @@ void symbols_LSF(int16_t *outp, uint8_t *inp)
 	}
 }
 
-int main(void)
+void symbols_Frame(int16_t *outp, uint8_t *inp)
+{
+	for(uint8_t i=0; i<8; i++)
+	{
+		outp[i]=symbol_map[(SYNC_STR>>(14-(2*i)))&3];
+	}
+	for(uint16_t i=8; i<192; i++)
+	{
+		outp[i]=symbol_map[inp[2*(i-8)]*2+inp[2*(i-8)+1]];
+	}
+}
+
+//main routine
+int main(int argc, uint8_t *argv[])
 {
 	struct LSF lsf;
 	
 	//init
 	CRC_init(CRC_LUT, crc_poly);
 	
-	sprintf(src_ascii, "SP5WWP");
-	sprintf(dst_ascii, "IU2KWO");
+	if(argc<3)
+	{
+		printf("Not enough params.\n\nUsage:\n./this DEST SRC\n\nExiting.");
+		return 1;
+	}
+	
+	memcpy(dst_ascii, &argv[1][0], strlen(argv[1]));
+	memcpy(src_ascii, &argv[2][0], strlen(argv[2]));
 	
 	//encode callsigns
 	lsf.dst=callsign_encode(dst_ascii);
@@ -304,7 +365,7 @@ int main(void)
 	
 	//printf("\n\n");
 	uint8_t unpacked_convolved_lsf[488];	//type-2 bits
-	convolve_LSF(unpacked_convolved_lsf, unpacked_lsf);
+	convolve(unpacked_convolved_lsf, unpacked_lsf, 240);
 	
 	/*printf("\n\nCONVOL:\n");
 	for(uint16_t i=0; i<488; i++)
@@ -347,7 +408,7 @@ int main(void)
 	
 	for(uint8_t i=0; i<192; i++)
 	{
-		LSF_symbols[i]*=5461;	//boost it up a little, make symbol +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
+		LSF_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
 		printf("%c%c", (LSF_symbols[i])&0xFF, (LSF_symbols[i]>>8)&0xFF);
 	}
 	
