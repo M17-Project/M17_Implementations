@@ -35,7 +35,7 @@ const uint16_t golay_encode_matrix[12]={
 
 const int16_t symbol_map[4]={+1, +3, -1, -3};
 
-#include "rrc_taps.h"
+//#include "rrc_taps.h"
 
 //syncwords
 const uint16_t SYNC_LSF		=0x55F7;
@@ -158,7 +158,7 @@ void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
 }
 
 //pack Frame
-//arg1: output array of bytes
+//arg1: output array of packed bytes
 //arg2: frame counter (16-bit)
 //arg3: LSF struct
 //arg4: payload (packed array of bytes)
@@ -169,34 +169,36 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 	uint8_t packed_LSF_chunk_golay[12];
 	
 	//pack a 40-bit chunk of LSF
+	//we use memcpy instead of ypcmem here
+	//because golay encoder expects little-endian data
 	switch(lich_cnt)
 	{
 		case 0:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->dst), 5);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->dst), 5);
 		break;
 		
 		case 1:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->dst)+5, 1);
-			ypcmem(&packed_LSF_chunk[1], (uint8_t*)&(lsf_in->src), 4);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->dst)+5, 1);
+			memcpy(&packed_LSF_chunk[1], (uint8_t*)&(lsf_in->src), 4);
 		break;
 		
 		case 2:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->src), 2);
-			ypcmem(&packed_LSF_chunk[2], (uint8_t*)&(lsf_in->type), 2);
-			ypcmem(&packed_LSF_chunk[4], (uint8_t*)&(lsf_in->meta), 1);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->src), 2);
+			memcpy(&packed_LSF_chunk[2], (uint8_t*)&(lsf_in->type), 2);
+			memcpy(&packed_LSF_chunk[4], (uint8_t*)&(lsf_in->meta), 1);
 		break;
 		
 		case 3:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+1, 5);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+1, 5);
 		break;
 		
 		case 4:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+6, 5);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+6, 5);
 		break;
 		
 		case 5:
-			ypcmem(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+11, 3);
-			ypcmem(&packed_LSF_chunk[3], (uint8_t*)&(lsf_in->crc), 2);
+			memcpy(&packed_LSF_chunk[0], (uint8_t*)&(lsf_in->meta)+11, 3);
+			memcpy(&packed_LSF_chunk[3], (uint8_t*)&(lsf_in->crc), 2);
 		break;
 		
 		default:
@@ -207,6 +209,14 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 	packed_LSF_chunk[5]=lich_cnt<<5;
 	
 	//time to Golay encode the LICH contents (48->96 bits)
+	uint8_t golay_encoded_LICH[12];
+	uint32_t g_enc[4];
+	
+	g_enc[0]=golay_coding(packed_LSF_chunk[0]|((packed_LSF_chunk[1]&0x0F)<<8));
+	g_enc[1]=golay_coding(((packed_LSF_chunk[1]&0xF0)>>4)|(packed_LSF_chunk[2]<<4));
+	g_enc[2]=golay_coding(packed_LSF_chunk[3]|((packed_LSF_chunk[4]&0x0F)<<8));
+	g_enc[3]=golay_coding(((packed_LSF_chunk[4]&0xF0)>>4)|(packed_LSF_chunk[5]<<4));
+	
 	;
 }
 
