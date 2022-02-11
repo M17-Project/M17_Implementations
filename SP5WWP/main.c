@@ -159,7 +159,7 @@ void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
 
 //pack Frame
 //arg1: output array of packed bytes
-//arg2: frame counter (16-bit)
+//arg2: FN (frame number, 16-bit)
 //arg3: LSF struct
 //arg4: payload (packed array of bytes)
 void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *payload)
@@ -206,18 +206,35 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 		break;
 	}
 	
-	packed_LSF_chunk[5]=lich_cnt<<5;
+	packed_LSF_chunk[5]=lich_cnt<<5; //5 LSBs are reserved (don't care)
 	
 	//time to Golay encode the LICH contents (48->96 bits)
-	uint8_t golay_encoded_LICH[12];
-	uint32_t g_enc[4];
+	uint8_t golay_encoded_LICH[12]; //packet bytes, 96 total
+	uint32_t g_enc[4]; //24-bit parts
 	
 	g_enc[0]=golay_coding(packed_LSF_chunk[0]|((packed_LSF_chunk[1]&0x0F)<<8));
 	g_enc[1]=golay_coding(((packed_LSF_chunk[1]&0xF0)>>4)|(packed_LSF_chunk[2]<<4));
 	g_enc[2]=golay_coding(packed_LSF_chunk[3]|((packed_LSF_chunk[4]&0x0F)<<8));
 	g_enc[3]=golay_coding(((packed_LSF_chunk[4]&0xF0)>>4)|(packed_LSF_chunk[5]<<4));
 	
-	;
+	//the byte order is just my guess...
+	golay_encoded_LICH[0]=g_enc[0]&0xFF;
+	golay_encoded_LICH[1]=(g_enc[0]>>8)&0xFF;
+	golay_encoded_LICH[2]=(g_enc[0]>>16)&0xFF;
+	golay_encoded_LICH[3]=g_enc[1]&0xFF;
+	golay_encoded_LICH[4]=(g_enc[1]>>8)&0xFF;
+	golay_encoded_LICH[5]=(g_enc[1]>>16)&0xFF;
+	golay_encoded_LICH[6]=g_enc[2]&0xFF;
+	golay_encoded_LICH[7]=(g_enc[2]>>8)&0xFF;
+	golay_encoded_LICH[8]=(g_enc[2]>>16)&0xFF;
+	golay_encoded_LICH[9]=g_enc[3]&0xFF;
+	golay_encoded_LICH[10]=(g_enc[3]>>8)&0xFF;
+	golay_encoded_LICH[11]=(g_enc[3]>>16)&0xFF;
+
+	//move to the destination
+	memcpy(&dest[0], golay_encoded_LICH, 12);
+	memcpy(&dest[12], (uint8_t*)&frame_cnt, 2);
+	memcpy(&dest[14], payload, 16);
 }
 
 uint16_t CRC_LSF(struct LSF *lsf_in)
