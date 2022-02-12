@@ -234,7 +234,10 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 	//move to the destination
 	memcpy(&dest[0], golay_encoded_LICH, 12);
 	memcpy(&dest[12], (uint8_t*)&frame_cnt, 2);
-	memcpy(&dest[14], payload, 16);
+	if(payload) //non-empty payload
+		memcpy(&dest[14], payload, 16);
+	else //NULL
+		memset(&dest[14], 0, 16);
 }
 
 uint16_t CRC_LSF(struct LSF *lsf_in)
@@ -429,7 +432,7 @@ int main(int argc, uint8_t *argv[])
 	/*uint8_t str[9]="123456789";
 	printf("STR CRC: %04X\n", CRC_M17(CRC_LUT, str, 9));*/
 	
-	//unpack LSF
+	//------------------------------------generate LSF------------------------------------
 	uint8_t unpacked_lsf[240];				//type-1 bits
 	unpack_LSF(unpacked_lsf, &lsf);
 	
@@ -473,6 +476,27 @@ int main(int argc, uint8_t *argv[])
 	//time to generate 192 LSF symbols
 	int16_t LSF_symbols[192];
 	symbols_LSF(LSF_symbols, unpacked_decorrelated_lsf);
+
+	//------------------------------------generate frame------------------------------------
+	uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, but before convolution)
+	pack_Frame(packed_frame, 0, &lsf, NULL);
+
+	//unpack the whole frame
+	uint8_t unpacked_frame[240];
+	unpack_Frame(unpacked_frame, packed_frame);
+
+	//convolve what has to be convolved to obtain type-2 bits
+	uint8_t unpacked_convolved_frame_payload[296];
+	convolve(unpacked_convolved_frame_payload, unpacked_frame, 16+128);
+
+	//puncture frame
+	; //TODO:todo
+
+	//interleave frame
+	; //TODO:todo
+
+	//decorrelate frame
+	; //TODO:todo
 	
 	//spit out 40ms preamble and the LSF at stdout
 	//Little-Endian
