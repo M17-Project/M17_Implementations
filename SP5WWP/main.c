@@ -246,7 +246,7 @@ uint16_t CRC_LSF(struct LSF *lsf_in)
 	return CRC_M17(CRC_LUT, lsf_bytes, 28);
 }
 
-//unpack type-1 bits
+//unpack type-1 bits - LSF
 void unpack_LSF(uint8_t *outp, struct LSF *lsf_in)
 {
 	uint8_t lsf_bytes[30];
@@ -255,6 +255,17 @@ void unpack_LSF(uint8_t *outp, struct LSF *lsf_in)
 	
 	for(uint8_t i=0; i<240; i++)
 		outp[i]=(lsf_bytes[i/8]>>(7-(i%8)))&1;
+}
+
+//unpack type-1 bits - stream frame
+void unpack_Frame(uint8_t *outp, uint8_t *inp)
+{
+	//we have to unpack everything
+	//LICH chunk + FN + payload
+	//but the convolutional encoder needs to start
+	//right after the LICH chunk
+	for(uint8_t i=0; i<96+16+128; i++)
+		outp[i]=(inp[i/8]>>(7-(i%8)))&1;
 }
 
 //convolve "num" unpacked type-1 bits into (num+4)*2 type-2 bits
@@ -281,8 +292,6 @@ void convolve(uint8_t *outp, uint8_t *inp, uint16_t num)
 		//printf("%02X\t%d\t%d\n", sr, outp[i*2], outp[i*2+1]);
 	}
 }
-
-
 
 //puncture LSF type-2 bits into type-3 bits using P_1 puncturer scheme
 void puncture_LSF(uint8_t *outp, uint8_t *inp)
