@@ -526,7 +526,7 @@ int main(int argc, uint8_t *argv[])
 	
 		//time to generate 192 frame symbols
 		int16_t Frame_symbols[192];
-		symbols_LSF(Frame_symbols, unpacked_decorrelated_frame);
+		symbols_Frame(Frame_symbols, unpacked_decorrelated_frame);
 		
 		for(uint8_t i=0; i<192; i++)
 		{
