@@ -476,29 +476,8 @@ int main(int argc, uint8_t *argv[])
 	//time to generate 192 LSF symbols
 	int16_t LSF_symbols[192];
 	symbols_LSF(LSF_symbols, unpacked_decorrelated_lsf);
-
-	//------------------------------------generate frame------------------------------------
-	uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, but before convolution)
-	pack_Frame(packed_frame, 0, &lsf, NULL);
-
-	//unpack the whole frame
-	uint8_t unpacked_frame[240];
-	unpack_Frame(unpacked_frame, packed_frame);
-
-	//convolve what has to be convolved to obtain type-2 bits
-	uint8_t unpacked_convolved_frame_payload[296];
-	convolve(unpacked_convolved_frame_payload, unpacked_frame, 16+128);
-
-	//puncture frame
-	; //TODO:todo
-
-	//interleave frame
-	; //TODO:todo
-
-	//decorrelate frame
-	; //TODO:todo
 	
-	//spit out 40ms preamble and the LSF at stdout
+	//spit out 40ms preamble at stdout
 	//Little-Endian
 	for(uint8_t i=0; i<192; i++)
 	{
@@ -508,11 +487,56 @@ int main(int argc, uint8_t *argv[])
 		printf("%c%c", symbol&0xFF, (symbol>>8)&0xFF);
 	}
 	
+	//LSF
 	for(uint8_t i=0; i<192; i++)
 	{
 		LSF_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
 		printf("%c%c", (LSF_symbols[i])&0xFF, (LSF_symbols[i]>>8)&0xFF);
 	}
+
+	//generate 70 dummy Frames
+	for(uint8_t n=0; n<70; n++)
+	{
+		//------------------------------------generate frame------------------------------------
+		uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, the remaining part is still before convolution)
+		pack_Frame(packed_frame, n, &lsf, NULL);
+	
+		//unpack the whole frame
+		uint8_t unpacked_frame[240];
+		unpack_Frame(unpacked_frame, packed_frame);
+	
+		//convolve what has to be convolved to obtain type-2 bits
+		uint8_t unpacked_convolved_frame_payload[296];
+		convolve(unpacked_convolved_frame_payload, &unpacked_frame[96], 16+128); //skip LICH for the convolution, it's already encoded
+	
+		//puncture frame
+		uint8_t unpacked_punctured_frame_payload[272];
+		puncture_Frame(unpacked_punctured_frame_payload, unpacked_convolved_frame_payload);
+	
+		//interleave frame
+		uint8_t unpacked_frame_full[368];
+		uint8_t unpacked_interleaved_frame[368];
+		memcpy(&unpacked_frame_full[0], unpacked_frame, 96); //move 96 bits of LICH
+		memcpy(&unpacked_frame_full[96], unpacked_punctured_frame_payload, 272); //move punctured convolved FN+payload
+		interleave(unpacked_interleaved_frame, unpacked_frame_full);
+	
+		//decorrelate frame
+		uint8_t unpacked_decorrelated_frame[368];
+		decorrelate(unpacked_decorrelated_frame, unpacked_interleaved_frame);
+	
+		//time to generate 192 frame symbols
+		int16_t Frame_symbols[192];
+		symbols_LSF(Frame_symbols, unpacked_decorrelated_frame);
+		
+		for(uint8_t i=0; i<192; i++)
+		{
+			Frame_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
+			printf("%c%c", (Frame_symbols[i])&0xFF, (Frame_symbols[i]>>8)&0xFF);
+		}
+	}
+	
+	//TODO: EOS
+	;
 	
 	//3 dummy symbols (a carrier, actually) for RRC flushing
 	for(uint8_t i=0; i<3; i++)
