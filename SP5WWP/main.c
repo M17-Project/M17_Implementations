@@ -542,15 +542,15 @@ int main(int argc, uint8_t *argv[])
 	}
 
 	//generate 70 dummy Frames
-	for(uint8_t n=0; n<70; n++)
+	for(fn=0; fn<70; fn++)
 	{
 		//------------------------------------generate stream frame------------------------------------
 		int16_t frame_symbols[192];
 		
-		if(n==69)
-			n|=0x8000; //last frame indicator
+		if(fn==69)
+			fn|=0x8000; //last frame indicator
 		
-		generate_StreamFrame(frame_symbols, &lsf, n, NULL);
+		generate_StreamFrame(frame_symbols, &lsf, fn, NULL);
 		
 		for(uint8_t i=0; i<192; i++)
 		{
