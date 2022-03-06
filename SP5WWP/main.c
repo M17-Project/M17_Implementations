@@ -41,7 +41,7 @@ const int16_t symbol_map[4]={+1, +3, -1, -3};
 const uint16_t SYNC_LSF		=0x55F7;
 const uint16_t SYNC_STR		=0xFF5D;
 const uint16_t SYNC_PKT		=0x75FF;
-const uint16_t SYNC_RES		=0xDF55;
+const uint16_t SYNC_BER		=0xDF55;
 
 //variables & structs
 uint8_t src_ascii[10];	//9 chars + \0
@@ -137,13 +137,17 @@ uint32_t golay_coding(uint16_t m)
     }
 
 	out |= m<<12;
+	
+	uint8_t a,b,c;
+	a=(out>>16)&0xFF;
+	b=(out>>8)&0xFF;
+	c=out&0xFF;
     
-    return out;
+    return (c<<16)|(b<<8)|a;
 }
 
 void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
 {
-	//TODO: the byte ordering scheme is NOT described in the spec!
 	ypcmem(&dest[0], (uint8_t*)&(lsf_in->dst), 6);
 	ypcmem(&dest[6], (uint8_t*)&(lsf_in->src), 6);
 	ypcmem(&dest[12], (uint8_t*)&(lsf_in->type), 2);
@@ -169,8 +173,6 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 	uint8_t packed_LSF_chunk_golay[12];
 	
 	//pack a 40-bit chunk of LSF
-	//we use memcpy instead of ypcmem here
-	//because golay encoder expects little-endian data
 	switch(lich_cnt)
 	{
 		case 0:
@@ -212,28 +214,28 @@ void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *
 	uint8_t golay_encoded_LICH[12]; //packet bytes, 96 total
 	uint32_t g_enc[4]; //24-bit parts
 	
-	g_enc[0]=golay_coding(packed_LSF_chunk[0]|((packed_LSF_chunk[1]&0x0F)<<8));
-	g_enc[1]=golay_coding(((packed_LSF_chunk[1]&0xF0)>>4)|(packed_LSF_chunk[2]<<4));
-	g_enc[2]=golay_coding(packed_LSF_chunk[3]|((packed_LSF_chunk[4]&0x0F)<<8));
-	g_enc[3]=golay_coding(((packed_LSF_chunk[4]&0xF0)>>4)|(packed_LSF_chunk[5]<<4));
+	g_enc[0]=golay_coding((packed_LSF_chunk[0]<<4)|(packed_LSF_chunk[1]&0x0F));
+	g_enc[1]=golay_coding(((packed_LSF_chunk[1]&0xF0)<<8)|packed_LSF_chunk[2]);
+	g_enc[2]=golay_coding((packed_LSF_chunk[3]<<4)|(packed_LSF_chunk[4]&0x0F));
+	g_enc[3]=golay_coding(((packed_LSF_chunk[4]&0xF0)<<8)|packed_LSF_chunk[5]);
 	
 	//the byte order is just my guess...
-	golay_encoded_LICH[0]=g_enc[0]&0xFF;
+	golay_encoded_LICH[0]=(g_enc[0]>>16)&0xFF;
 	golay_encoded_LICH[1]=(g_enc[0]>>8)&0xFF;
-	golay_encoded_LICH[2]=(g_enc[0]>>16)&0xFF;
-	golay_encoded_LICH[3]=g_enc[1]&0xFF;
+	golay_encoded_LICH[2]=g_enc[0]&0xFF;
+	golay_encoded_LICH[3]=(g_enc[1]>>16)&0xFF;
 	golay_encoded_LICH[4]=(g_enc[1]>>8)&0xFF;
-	golay_encoded_LICH[5]=(g_enc[1]>>16)&0xFF;
-	golay_encoded_LICH[6]=g_enc[2]&0xFF;
+	golay_encoded_LICH[5]=g_enc[1]&0xFF;
+	golay_encoded_LICH[6]=(g_enc[2]>>16)&0xFF;
 	golay_encoded_LICH[7]=(g_enc[2]>>8)&0xFF;
-	golay_encoded_LICH[8]=(g_enc[2]>>16)&0xFF;
-	golay_encoded_LICH[9]=g_enc[3]&0xFF;
+	golay_encoded_LICH[8]=g_enc[2]&0xFF;
+	golay_encoded_LICH[9]=(g_enc[3]>>16)&0xFF;
 	golay_encoded_LICH[10]=(g_enc[3]>>8)&0xFF;
-	golay_encoded_LICH[11]=(g_enc[3]>>16)&0xFF;
+	golay_encoded_LICH[11]=g_enc[3]&0xFF;
 
 	//move to the destination
 	memcpy(&dest[0], golay_encoded_LICH, 12);
-	memcpy(&dest[12], (uint8_t*)&frame_cnt, 2);
+	ypcmem(&dest[12], (uint8_t*)&frame_cnt, 2);
 	if(payload) //non-empty payload
 		memcpy(&dest[14], payload, 16);
 	else //NULL
@@ -394,47 +396,13 @@ void symbols_Frame(int16_t *outp, uint8_t *inp)
 	}
 }
 
-//main routine
-int main(int argc, uint8_t *argv[])
+//generate LSF symbols
+//arg1: output array - 192 symbols
+//arg2 - LSF struct input
+void generate_LSF(int16_t *sym_out, struct LSF *lsf)
 {
-	struct LSF lsf;
-	
-	//init
-	CRC_init(CRC_LUT, crc_poly);
-	
-	if(argc<3)
-	{
-		printf("Not enough params.\n\nUsage:\n./this DEST SRC\n\nExiting.");
-		return 1;
-	}
-	
-	memcpy(dst_ascii, &argv[1][0], strlen(argv[1]));
-	memcpy(src_ascii, &argv[2][0], strlen(argv[2]));
-	
-	//encode callsigns
-	lsf.dst=callsign_encode(dst_ascii);
-	lsf.src=callsign_encode(src_ascii);
-	
-	//printf("LSF.DST: 0x%012X (%s)\n", lsf.dst, dst_ascii);
-	//printf("LSF.SRC: 0x%012X (%s)\n", lsf.src, src_ascii);
-	
-	//set stream parameters
-	lsf.type=TYPE_STR|TYPE_V|TYPE_ENCR_NONE|TYPE_ENCR_SUB_NONE|(0b0000<<CAN)|TYPE_RESERVED;
-	
-	//zero out the META field for now
-	memset((uint8_t*)&(lsf.meta), 0, 14);
-	
-	//calculate CRC
-	lsf.crc=CRC_LSF(&lsf);
-	//printf("\nCRC: %04X\n", lsf.crc);
-	
-	//test CRC against test vector
-	/*uint8_t str[9]="123456789";
-	printf("STR CRC: %04X\n", CRC_M17(CRC_LUT, str, 9));*/
-	
-	//------------------------------------generate LSF------------------------------------
 	uint8_t unpacked_lsf[240];				//type-1 bits
-	unpack_LSF(unpacked_lsf, &lsf);
+	unpack_LSF(unpacked_lsf, lsf);
 	
 	/*printf("\n\nLSF:\n");
 	for(uint8_t i=0; i<240; i++)
@@ -474,8 +442,87 @@ int main(int argc, uint8_t *argv[])
 	decorrelate(unpacked_decorrelated_lsf, unpacked_interleaved_lsf);
 	
 	//time to generate 192 LSF symbols
+	symbols_LSF(sym_out, unpacked_decorrelated_lsf);
+}
+
+//generate stream frame symbols
+//arg1: output array - 192 symbols
+//arg2: LSF struct input
+//arg3: Frame Number (remember to set the MSB to 1 for the last frame)
+//arg4: payload
+void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_t *payload)
+{
+	uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, the remaining part is still before convolution)
+	pack_Frame(packed_frame, fn, lsf, payload);
+	
+	//unpack the whole frame
+	uint8_t unpacked_frame[240];
+	unpack_Frame(unpacked_frame, packed_frame);
+	
+	//convolve what has to be convolved to obtain type-2 bits
+	uint8_t unpacked_convolved_frame_payload[296];
+	convolve(unpacked_convolved_frame_payload, &unpacked_frame[96], 16+128); //skip LICH for the convolution, it's already encoded
+	
+	//puncture frame
+	uint8_t unpacked_punctured_frame_payload[272];
+	puncture_Frame(unpacked_punctured_frame_payload, unpacked_convolved_frame_payload);
+	
+	//interleave frame
+	uint8_t unpacked_frame_full[368];
+	uint8_t unpacked_interleaved_frame[368];
+	memcpy(&unpacked_frame_full[0], unpacked_frame, 96); //move 96 bits of LICH
+	memcpy(&unpacked_frame_full[96], unpacked_punctured_frame_payload, 272); //move punctured convolved FN+payload
+	interleave(unpacked_interleaved_frame, unpacked_frame_full);
+	
+	//decorrelate frame
+	uint8_t unpacked_decorrelated_frame[368];
+	decorrelate(unpacked_decorrelated_frame, unpacked_interleaved_frame);
+	
+	//time to generate 192 frame symbols
+	symbols_Frame(sym_out, unpacked_decorrelated_frame);
+}
+
+//main routine
+int main(int argc, uint8_t *argv[])
+{
+	struct LSF lsf;
+	
+	//init
+	CRC_init(CRC_LUT, crc_poly);
+	
+	if(argc<3)
+	{
+		printf("Not enough params.\n\nUsage:\n./this DEST SRC\n\nExiting.");
+		return 1;
+	}
+	
+	memcpy(dst_ascii, &argv[1][0], strlen(argv[1]));
+	memcpy(src_ascii, &argv[2][0], strlen(argv[2]));
+	
+	//encode callsigns
+	lsf.dst=callsign_encode(dst_ascii);
+	lsf.src=callsign_encode(src_ascii);
+	
+	//printf("LSF.DST: 0x%012X (%s)\n", lsf.dst, dst_ascii);
+	//printf("LSF.SRC: 0x%012X (%s)\n", lsf.src, src_ascii);
+	
+	//set stream parameters
+	lsf.type=TYPE_STR|TYPE_V|TYPE_ENCR_NONE|TYPE_ENCR_SUB_NONE|(0b0000<<CAN)|TYPE_RESERVED;
+	
+	//zero out the META field for now
+	memset((uint8_t*)&(lsf.meta), 0, 14);
+	
+	//calculate CRC
+	lsf.crc=CRC_LSF(&lsf);
+	//printf("\nCRC: %04X\n", lsf.crc);
+	
+	//test CRC against test vector
+	/*uint8_t str[9]="123456789";
+	printf("STR CRC: %04X\n", CRC_M17(CRC_LUT, str, 9));*/
+	
+	//------------------------------------generate LSF------------------------------------
 	int16_t LSF_symbols[192];
-	symbols_LSF(LSF_symbols, unpacked_decorrelated_lsf);
+	generate_LSF(LSF_symbols, &lsf);
 	
 	//spit out 40ms preamble at stdout
 	//Little-Endian
@@ -497,41 +544,18 @@ int main(int argc, uint8_t *argv[])
 	//generate 70 dummy Frames
 	for(uint8_t n=0; n<70; n++)
 	{
-		//------------------------------------generate frame------------------------------------
-		uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, the remaining part is still before convolution)
-		pack_Frame(packed_frame, n, &lsf, NULL);
-	
-		//unpack the whole frame
-		uint8_t unpacked_frame[240];
-		unpack_Frame(unpacked_frame, packed_frame);
-	
-		//convolve what has to be convolved to obtain type-2 bits
-		uint8_t unpacked_convolved_frame_payload[296];
-		convolve(unpacked_convolved_frame_payload, &unpacked_frame[96], 16+128); //skip LICH for the convolution, it's already encoded
-	
-		//puncture frame
-		uint8_t unpacked_punctured_frame_payload[272];
-		puncture_Frame(unpacked_punctured_frame_payload, unpacked_convolved_frame_payload);
-	
-		//interleave frame
-		uint8_t unpacked_frame_full[368];
-		uint8_t unpacked_interleaved_frame[368];
-		memcpy(&unpacked_frame_full[0], unpacked_frame, 96); //move 96 bits of LICH
-		memcpy(&unpacked_frame_full[96], unpacked_punctured_frame_payload, 272); //move punctured convolved FN+payload
-		interleave(unpacked_interleaved_frame, unpacked_frame_full);
-	
-		//decorrelate frame
-		uint8_t unpacked_decorrelated_frame[368];
-		decorrelate(unpacked_decorrelated_frame, unpacked_interleaved_frame);
-	
-		//time to generate 192 frame symbols
-		int16_t Frame_symbols[192];
-		symbols_Frame(Frame_symbols, unpacked_decorrelated_frame);
+		//------------------------------------generate stream frame------------------------------------
+		int16_t frame_symbols[192];
+		
+		if(n==69)
+			n|=0x8000; //last frame indicator
+		
+		generate_StreamFrame(frame_symbols, &lsf, n, NULL);
 		
 		for(uint8_t i=0; i<192; i++)
 		{
-			Frame_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
-			printf("%c%c", (Frame_symbols[i])&0xFF, (Frame_symbols[i]>>8)&0xFF);
+			frame_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
+			printf("%c%c", (frame_symbols[i])&0xFF, (frame_symbols[i]>>8)&0xFF);
 		}
 	}
 	
