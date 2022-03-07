@@ -3,7 +3,7 @@
 #include <stdint.h>
 
 #define TYPE_PKT			0				//Packet type
-#define TYPE_STR			(1<<0)			//Stream type
+#define TYPE_STR			1				//Stream type
 #define TYPE_RES			(0b00<<1)		//Reserved type
 #define TYPE_V				(0b10<<1)		//Type: Voice
 #define TYPE_D				(0b01<<1)		//Type: Data
@@ -12,7 +12,7 @@
 #define TYPE_ENCR_SUB_NONE	(0b00<<5)		//Encryption subtype: none
 #define CAN					7				//Channel Access Number (bit location)
 #define TYPE_RESERVED		(0b00000<<11)	//Reserved fields (zeroes)
-#define EOS_BIT				(1<<16)			//End Of Stream indicator (1 bit)
+#define EOS_BIT				(1<<15)			//End Of Stream indicator (1 bit)
 
 const uint16_t crc_poly		=0x5935;
 uint16_t CRC_LUT[256];
@@ -324,12 +324,12 @@ void puncture_LSF(uint8_t *outp, uint8_t *inp)
 	//printf("n=%d\n", n);
 }
 
-//puncture FRAME type-2 bits into type-3 bits using P_2 puncturer scheme
-void puncture_Frame(uint8_t *outp, uint8_t *inp)
+//puncture stream frame type-2 bits into type-3 bits using P_2 puncturer scheme
+void puncture_StreamFrame(uint8_t *outp, uint8_t *inp)
 {
 	const uint8_t punct[12]={ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0 };
 
-	//to puncture the FRAME type-3 bits properly, we have to use puncturing matrix above
+	//to puncture the stream frame type-3 bits properly, we have to use puncturing matrix above
 	//it has 12 elements, so we have to use them going along from the beginning to the end
 	//then again and again, giving 272 elements we need
 	
@@ -465,7 +465,7 @@ void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_
 	
 	//puncture frame
 	uint8_t unpacked_punctured_frame_payload[272];
-	puncture_Frame(unpacked_punctured_frame_payload, unpacked_convolved_frame_payload);
+	puncture_StreamFrame(unpacked_punctured_frame_payload, unpacked_convolved_frame_payload);
 	
 	//interleave frame
 	uint8_t unpacked_frame_full[368];
@@ -548,7 +548,7 @@ int main(int argc, uint8_t *argv[])
 		int16_t frame_symbols[192];
 		
 		if(fn==69)
-			fn|=0x8000; //last frame indicator
+			fn|=EOS_BIT; //last frame indicator
 		
 		generate_StreamFrame(frame_symbols, &lsf, fn, NULL);
 		
