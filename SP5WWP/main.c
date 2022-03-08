@@ -11,8 +11,8 @@
 #define TYPE_ENCR_NONE		(0b00<<3)		//Encryption: none
 #define TYPE_ENCR_SUB_NONE	(0b00<<5)		//Encryption subtype: none
 #define CAN					7				//Channel Access Number (bit location)
-#define TYPE_RESERVED		(0b00000<<11)	//Reserved fields (zeroes)
-#define EOS_BIT				(1<<15)			//End Of Stream indicator (1 bit)
+#define EOS_BIT				(1<<15)			//End Of Stream indicator (1 bit) - last stream frame
+#define EOF_BIT				(1<<5)			//End Of Frame indicator (1 bit) - last packet frame
 
 const uint16_t crc_poly		=0x5935;
 uint16_t CRC_LUT[256];
@@ -57,8 +57,7 @@ struct LSF
 	uint16_t crc;
 };
 
-uint16_t fn=0;
-uint8_t payload[16]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,};	//test only
+uint16_t fn=0; //16-bit Frame Number (for stream mode)
 
 //funcs
 void ypcmem(uint8_t *dst, uint8_t *src, uint16_t nBytes)
@@ -536,8 +535,7 @@ void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_
 //arg1: output array - 192 symbols
 //arg2: 6-bit Frame Number (remember to set the MSB to 1 for the last frame)
 //arg3: payload
-//arg4: last frame indicator
-void generate_PacketFrame(int16_t *sym_out, uint8_t fn, uint8_t *payload, uint8_t last)
+void generate_PacketFrame(int16_t *sym_out, uint8_t fn, uint8_t *payload)
 {
 	uint8_t unpacked_frame[25*8+6]; //packed type-1 bits
 	unpack_PacketFrame(unpacked_frame, payload, fn);
@@ -587,7 +585,9 @@ int main(int argc, uint8_t *argv[])
 	//printf("LSF.SRC: 0x%012X (%s)\n", lsf.src, src_ascii);
 	
 	//set stream parameters
-	lsf.type=TYPE_STR|TYPE_V|TYPE_ENCR_NONE|TYPE_ENCR_SUB_NONE|(0b0000<<CAN)|TYPE_RESERVED;
+	lsf.type=0;
+	//lsf.type=TYPE_STR|TYPE_V|TYPE_ENCR_NONE|TYPE_ENCR_SUB_NONE|(0b0000<<CAN);
+	lsf.type=TYPE_PKT|TYPE_D|TYPE_ENCR_NONE|TYPE_ENCR_SUB_NONE|(0b0000<<CAN);
 	
 	//zero out the META field for now
 	memset((uint8_t*)&(lsf.meta), 0, 14);
@@ -600,12 +600,7 @@ int main(int argc, uint8_t *argv[])
 	/*uint8_t str[9]="123456789";
 	printf("STR CRC: %04X\n", CRC_M17(CRC_LUT, str, 9));*/
 	
-	//------------------------------------generate LSF------------------------------------
-	int16_t LSF_symbols[192];
-	generate_LSF(LSF_symbols, &lsf);
-	
-	//spit out 40ms preamble at stdout
-	//Little-Endian
+	//spit out 40ms preamble at stdout (little-endian)
 	for(uint8_t i=0; i<192; i++)
 	{
 		int16_t symbol=0;
@@ -614,15 +609,21 @@ int main(int argc, uint8_t *argv[])
 		printf("%c%c", symbol&0xFF, (symbol>>8)&0xFF);
 	}
 	
-	//LSF
+	//generate LSF
+	int16_t LSF_symbols[192];
+	generate_LSF(LSF_symbols, &lsf);
+	
 	for(uint8_t i=0; i<192; i++)
 	{
 		LSF_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
 		printf("%c%c", (LSF_symbols[i])&0xFF, (LSF_symbols[i]>>8)&0xFF);
 	}
 
-	//generate 70 dummy Frames
-	for(fn=0; fn<70; fn++)
+	//uncomment either part below to get a sample of stream or packet un-RRC-filtered baseband
+	//dont forget to set the TYPE in the LSF properly
+	
+	//generate 70 dummy stream frames
+	/*for(fn=0; fn<70; fn++)
 	{
 		int16_t frame_symbols[192];
 		
@@ -636,7 +637,23 @@ int main(int argc, uint8_t *argv[])
 			frame_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
 			printf("%c%c", (frame_symbols[i])&0xFF, (frame_symbols[i]>>8)&0xFF);
 		}
-	}
+	}*/
+	
+	//generate a packet frame with "Hello world!" text message
+	uint8_t message[25-2]; //max length is 48, because we need 2 bytes for the CRC
+	sprintf(message, "Hello world!");
+	uint8_t payload[25]; //25-byte frame
+	payload[0]=0x05; //text message
+	memset(&payload[1], 0, 24);
+	memcpy(&payload[1], message, strlen(message));
+	
+	int16_t frame_symbols[192];
+	generate_PacketFrame(frame_symbols, (strlen(message)+2+1)|EOF_BIT, &payload[0]); //EOF bit is 1 (last frame), length is strlen plus 2 bytes CRC and 1 byte of content specifier
+	for(uint8_t i=0; i<192; i++)
+	{
+		frame_symbols[i]*=5461;	//boost it up a little, make symbols +/-3 have an amplitude of 0.5 (32767/2/3=~5461)
+		printf("%c%c", (frame_symbols[i])&0xFF, (frame_symbols[i]>>8)&0xFF);
+	}	
 	
 	//EOT marker
 	for(uint8_t i=0; i<192; i++)
