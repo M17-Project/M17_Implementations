@@ -162,12 +162,12 @@ void pack_LSF(uint8_t* dest, struct LSF *lsf_in, uint8_t crc_too)
 	printf("\n\n");*/
 }
 
-//pack Frame
+//pack stream frame
 //arg1: output array of packed bytes
 //arg2: FN (frame number, 16-bit)
 //arg3: LSF struct
 //arg4: payload (packed array of bytes)
-void pack_Frame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *payload)
+void pack_StreamFrame(uint8_t* dest, uint16_t frame_cnt, struct LSF *lsf_in, uint8_t *payload)
 {
 	uint8_t lich_cnt=frame_cnt%6;
 	uint8_t packed_LSF_chunk[6];
@@ -264,7 +264,7 @@ void unpack_LSF(uint8_t *outp, struct LSF *lsf_in)
 }
 
 //unpack type-1 bits - stream frame
-void unpack_Frame(uint8_t *outp, uint8_t *inp)
+void unpack_StreamFrame(uint8_t *outp, uint8_t *inp)
 {
 	//we have to unpack everything
 	//LICH chunk + FN + payload
@@ -272,6 +272,19 @@ void unpack_Frame(uint8_t *outp, uint8_t *inp)
 	//right after the LICH chunk
 	for(uint8_t i=0; i<96+16+128; i++)
 		outp[i]=(inp[i/8]>>(7-(i%8)))&1;
+}
+
+//unpack type-1 bits - packet frame
+//arg1: output - array of unpacked bits
+//arg2: payload in, 25 bytes
+//arg3: 6-bit frame number
+void unpack_PacketFrame(uint8_t *outp, uint8_t *payload, uint8_t fn)
+{
+	for(uint16_t i=0; i<25*8; i++)
+		outp[i]=(payload[i/8]>>(7-(i%8)))&1;
+	
+	for(uint16_t i=0; i<6; i++)
+		outp[25*8+i]=(fn>>(5-i))&1;
 }
 
 //convolve "num" unpacked type-1 bits into (num+4)*2 type-2 bits
@@ -490,11 +503,11 @@ void generate_LSF(int16_t *sym_out, struct LSF *lsf)
 void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_t *payload)
 {
 	uint8_t packed_frame[30];	//type-1.5 bits (Golay encoded LICH, the remaining part is still before convolution)
-	pack_Frame(packed_frame, fn, lsf, payload);
+	pack_StreamFrame(packed_frame, fn, lsf, payload);
 	
 	//unpack the whole frame
 	uint8_t unpacked_frame[240];
-	unpack_Frame(unpacked_frame, packed_frame);
+	unpack_StreamFrame(unpacked_frame, packed_frame);
 	
 	//convolve what has to be convolved to obtain type-2 bits
 	uint8_t unpacked_convolved_frame_payload[296];
@@ -526,7 +539,27 @@ void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_
 //arg4: last frame indicator
 void generate_PacketFrame(int16_t *sym_out, uint8_t fn, uint8_t *payload, uint8_t last)
 {
-	;
+	uint8_t unpacked_frame[25*8+6]; //packed type-1 bits
+	unpack_PacketFrame(unpacked_frame, payload, fn);
+	
+	//convolve to obtain type-2 bits
+	uint8_t unpacked_convolved_frame[420];
+	convolve(unpacked_convolved_frame, unpacked_frame, 25*8+6);
+
+	//puncture frame
+	uint8_t unpacked_punctured_frame[368];
+	puncture_PacketFrame(unpacked_punctured_frame, unpacked_convolved_frame);
+
+	//interleave frame
+	uint8_t unpacked_interleaved_frame[368];
+	interleave(unpacked_interleaved_frame, unpacked_punctured_frame);
+
+	//decorrelate frame
+	uint8_t unpacked_decorrelated_frame[368];
+	decorrelate(unpacked_decorrelated_frame, unpacked_interleaved_frame);
+	
+	//time to generate 192 frame symbols
+	symbols_PacketFrame(sym_out, unpacked_decorrelated_frame);
 }
 
 //main routine
