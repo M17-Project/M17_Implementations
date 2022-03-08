@@ -485,7 +485,7 @@ void generate_LSF(int16_t *sym_out, struct LSF *lsf)
 //generate stream frame symbols
 //arg1: output array - 192 symbols
 //arg2: LSF struct input
-//arg3: Frame Number (remember to set the MSB to 1 for the last frame)
+//arg3: 16-bit Frame Number (remember to set the MSB to 1 for the last frame)
 //arg4: payload
 void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_t *payload)
 {
@@ -521,7 +521,7 @@ void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_
 
 //generate packet frame symbols
 //arg1: output array - 192 symbols
-//arg2: Frame Number (remember to set the MSB to 1 for the last frame)
+//arg2: 6-bit Frame Number (remember to set the MSB to 1 for the last frame)
 //arg3: payload
 //arg4: last frame indicator
 void generate_PacketFrame(int16_t *sym_out, uint8_t fn, uint8_t *payload, uint8_t last)
