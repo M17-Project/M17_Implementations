@@ -349,6 +349,30 @@ void puncture_StreamFrame(uint8_t *outp, uint8_t *inp)
 	//printf("n=%d\n", n);
 }
 
+//puncture packet frame type-2 bits into type-3 bits using P_3 puncturer scheme
+void puncture_PacketFrame(uint8_t *outp, uint8_t *inp)
+{
+	const uint8_t punct[8]={ 1, 1, 1, 1, 1, 1, 1, 0 };
+
+	//to puncture the stream frame type-3 bits properly, we have to use puncturing matrix above
+	//it has 8 elements, so we have to use them going along from the beginning to the end
+	//then again and again, giving 368 elements we need
+	
+	uint16_t n=0;	//how many bits actually went through the puncturer
+	
+	for(uint16_t i=0; i<420; i++)
+	{
+		if(punct[i%8])
+		{
+			outp[n]=inp[i];
+			n++;
+		}
+	}
+
+	//make sure we have 368
+	//printf("n=%d\n", n);
+}
+
 //interleaver and decorrelator - both are the same for all data frames
 //interleave 
 void interleave(uint8_t *outp, uint8_t *inp)
@@ -385,11 +409,23 @@ void symbols_LSF(int16_t *outp, uint8_t *inp)
 	}
 }
 
-void symbols_Frame(int16_t *outp, uint8_t *inp)
+void symbols_StreamFrame(int16_t *outp, uint8_t *inp)
 {
 	for(uint8_t i=0; i<8; i++)
 	{
 		outp[i]=symbol_map[(SYNC_STR>>(14-(2*i)))&3];
+	}
+	for(uint16_t i=8; i<192; i++)
+	{
+		outp[i]=symbol_map[inp[2*(i-8)]*2+inp[2*(i-8)+1]];
+	}
+}
+
+void symbols_PacketFrame(int16_t *outp, uint8_t *inp)
+{
+	for(uint8_t i=0; i<8; i++)
+	{
+		outp[i]=symbol_map[(SYNC_PKT>>(14-(2*i)))&3];
 	}
 	for(uint16_t i=8; i<192; i++)
 	{
@@ -480,7 +516,17 @@ void generate_StreamFrame(int16_t *sym_out, struct LSF *lsf, uint16_t fn, uint8_
 	decorrelate(unpacked_decorrelated_frame, unpacked_interleaved_frame);
 	
 	//time to generate 192 frame symbols
-	symbols_Frame(sym_out, unpacked_decorrelated_frame);
+	symbols_StreamFrame(sym_out, unpacked_decorrelated_frame);
+}
+
+//generate packet frame symbols
+//arg1: output array - 192 symbols
+//arg2: Frame Number (remember to set the MSB to 1 for the last frame)
+//arg3: payload
+//arg4: last frame indicator
+void generate_PacketFrame(int16_t *sym_out, uint8_t fn, uint8_t *payload, uint8_t last)
+{
+	;
 }
 
 //main routine
@@ -545,7 +591,6 @@ int main(int argc, uint8_t *argv[])
 	//generate 70 dummy Frames
 	for(fn=0; fn<70; fn++)
 	{
-		//------------------------------------generate stream frame------------------------------------
 		int16_t frame_symbols[192];
 		
 		if(fn==69)
