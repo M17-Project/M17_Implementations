@@ -42,6 +42,7 @@ const uint16_t SYNC_LSF		=0x55F7;
 const uint16_t SYNC_STR		=0xFF5D;
 const uint16_t SYNC_PKT		=0x75FF;
 const uint16_t SYNC_BER		=0xDF55;
+const uint16_t EOT_MRKR		=0x555D;
 
 //variables & structs
 uint8_t src_ascii[10];	//9 chars + \0
@@ -559,11 +560,16 @@ int main(int argc, uint8_t *argv[])
 		}
 	}
 	
-	//TODO: EOS
-	;
+	//EOT marker
+	for(uint8_t i=0; i<192; i++)
+	{
+		int16_t symbol=symbol_map[(EOT_MRKR>>(6-(i%4)*2))&0b11]*5461;
+		
+		printf("%c%c", symbol&0xFF, (symbol>>8)&0xFF);
+	}
 	
-	//3 dummy symbols (a carrier, actually) for RRC flushing
-	for(uint8_t i=0; i<3; i++)
+	//4 dummy symbols (a carrier, actually) for RRC flushing
+	for(uint8_t i=0; i<4; i++)
 		printf("%c%c", 0, 0);
 
 	return 0;
