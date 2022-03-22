@@ -605,7 +605,7 @@ int main(int argc, uint8_t *argv[])
 	{
 		int16_t symbol=0;
 		
-		(i%2)?(symbol=3*5461):(symbol=-3*5461);
+		(i%2)?(symbol=-3*5461):(symbol=3*5461);
 		printf("%c%c", symbol&0xFF, (symbol>>8)&0xFF);
 	}
 	
