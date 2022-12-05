@@ -11,7 +11,7 @@ const int8_t str_sync[8]={-3, -3, -3, -3, +3, +3, -3, +3};
 const int8_t lsf_sync[8]={+3, +3, +3, +3, -3, -3, +3, -3};
 
 //symbol levels
-const float symbs[4]={-3*0.12, -1*0.12, +1*0.12, +3*0.12};
+const float symbs[4]={-3.0, -1.0, +1.0, +3.0};
 
 //RRC filter - 10 samples per symbol, 8 symbols span
 const float taps[FLT_LEN]=

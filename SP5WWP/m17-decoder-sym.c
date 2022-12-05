@@ -6,12 +6,13 @@
 
 #include "m17.h"
 #include "golay.h"
+#include "viterbi.h"
 
-float sample;
-float last[8];
-float xcorr;
-float pld[SYM_PER_PLD];
-uint16_t soft_bit[2*SYM_PER_PLD];
+float sample;                       //last raw sample from the stdin
+float last[8];                      //look-back buffer for finding syncwords
+float xcorr;                        //cross correlation for finding syncwords
+float pld[SYM_PER_PLD];             //raw frame symbols
+uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
 uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
 
 uint8_t lsf[30];                    //complete LSF
@@ -20,8 +21,13 @@ uint8_t lich_b[6];                  //48-bit decoded LICH
 uint8_t lich_cnt;                   //LICH_CNT
 uint8_t lich_chunks_rcvd=0;         //flags set for each LSF chunk received
 
-uint8_t syncd=0;
-uint8_t pushed; //pushed symbols
+uint16_t enc_data[272];             //raw frame data soft bits
+uint8_t frame_data[18];             //decoded frame data, 144 bits (16+128)
+
+uint8_t syncd=0;                    //syncword found?
+uint8_t pushed;                     //counter for pushed symbols
+
+extern const uint8_t P2_pat[12];
 
 //soft decodes LICH into a 6-byte array
 //input - soft bits
@@ -76,6 +82,10 @@ int main(void)
             {
                 syncd=1;
                 pushed=0;
+            }
+            else if(xcorr<-62)
+            {
+                printf("LSF\n");
             }
         }
         else
@@ -152,7 +162,7 @@ int main(void)
                 //debug - dump LICH
                 if(lich_chunks_rcvd==0x3F)
                 {
-                    //DST
+                    /*//DST
                     printf("DST: ");
                     for(uint8_t i=0; i<6; i++)
                         printf("%02X", lsf[i]);
@@ -180,10 +190,27 @@ int main(void)
                     printf("CRC: ");
                     for(uint8_t i=0; i<2; i++)
                         printf("%02X", lsf[28+i]);
-                    printf("\n");
+                    printf("\n");*/
 
                     lich_chunks_rcvd=0; //reset all flags
                 }
+
+                //extract data
+                for(uint16_t i=0; i<272; i++)
+                {
+                    enc_data[i]=d_soft_bit[96+i];
+                }
+
+                //data part
+                memset((uint8_t*)frame_data, 0, 18);
+                decodePunctured(frame_data, enc_data, P2_pat, 272, 12);
+
+                //dump data
+                for(uint8_t i=0; i<18; i++)
+                {
+                    printf("%02X ", frame_data[i]);
+                }
+                printf("\n");
 
                 //job done
                 syncd=0;
