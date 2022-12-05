@@ -183,9 +183,9 @@ blocks:
     marker8: '-1'
     marker9: '-1'
     nconnections: '1'
-    samp_per_symbol: '5'
-    size: 200*5
-    srate: symbol_rate*5
+    samp_per_symbol: '1'
+    size: 200*1
+    srate: symbol_rate*1
     style1: '1'
     style10: '1'
     style2: '1'
@@ -215,8 +215,8 @@ blocks:
     width8: '1'
     width9: '1'
     ylabel: Amplitude
-    ymax: '1'
-    ymin: '-1'
+    ymax: '5'
+    ymin: '-5'
     yunit: '""'
   states:
     bus_sink: false
