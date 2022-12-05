@@ -143,27 +143,47 @@ int main(void)
                     lich_chunk[i]=d_soft_bit[i];
                 }
 
-                //Golay decoder goes here
+                //Golay decoder
                 decode_LICH(lich_b, lich_chunk);
-
-                for(uint8_t i=0; i<6; i++)
-                    printf("%02X ", lich_b[i]);
-                printf("\n");
+                lich_cnt=lich_b[5]>>5;
+                lich_chunks_rcvd|=(1<<lich_cnt);
+                memcpy(&lsf[lich_cnt*5], lich_b, 5);
 
                 //debug - dump LICH
-                /*uint8_t tmp;
-                for(uint16_t i=0; i<96; i++)
+                if(lich_chunks_rcvd==0x3F)
                 {
-                    if(!(i%8))
-                        tmp=0;
-                    if(lich_chunk[i]>0x7FFF)
-                        tmp|=(1<<(7-(i%8)));
-                    if(!((i+1)%8))
-                        write(STDOUT_FILENO, &tmp, 1);
+                    //DST
+                    printf("DST: ");
+                    for(uint8_t i=0; i<6; i++)
+                        printf("%02X", lsf[i]);
+                    printf(" ");
+
+                    //SRC
+                    printf("SRC: ");
+                    for(uint8_t i=0; i<6; i++)
+                        printf("%02X", lsf[6+i]);
+                    printf(" ");
+
+                    //TYPE
+                    printf("TYPE: ");
+                    for(uint8_t i=0; i<2; i++)
+                        printf("%02X", lsf[12+i]);
+                    printf(" ");
+
+                    //META
+                    printf("META: ");
+                    for(uint8_t i=0; i<14; i++)
+                        printf("%02X", lsf[14+i]);
+                    printf(" ");
+
+                    //CRC
+                    printf("CRC: ");
+                    for(uint8_t i=0; i<2; i++)
+                        printf("%02X", lsf[28+i]);
+                    printf("\n");
+
+                    lich_chunks_rcvd=0; //reset all flags
                 }
-                tmp=0; //padding
-                for(uint8_t i=0; i<4; i++)
-                    write(STDOUT_FILENO, &tmp, 1);*/
 
                 //job done
                 syncd=0;
