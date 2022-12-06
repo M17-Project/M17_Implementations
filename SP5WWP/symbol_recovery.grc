@@ -1,11 +1,11 @@
 options:
   parameters:
-    author: sp5wwp
+    author: SP5WWP
     catch_exceptions: 'True'
     category: '[GRC Hier Blocks]'
     cmake_opt: ''
     comment: ''
-    copyright: ''
+    copyright: M17 Project, Dec 2022
     description: ''
     gen_cmake: 'On'
     gen_linking: dynamic
@@ -22,7 +22,7 @@ options:
     run_options: prompt
     sizing_mode: fixed
     thread_safe_setters: ''
-    title: Not titled yet
+    title: M17 symbol recovery and sync
     window_size: (1000,1000)
   states:
     bus_sink: false
