@@ -22,7 +22,7 @@ uint8_t lich_cnt;                   //LICH_CNT
 uint8_t lich_chunks_rcvd=0;         //flags set for each LSF chunk received
 
 uint16_t enc_data[272];             //raw frame data soft bits
-uint8_t frame_data[18];             //decoded frame data, 144 bits (16+128)
+uint8_t frame_data[19];             //decoded frame data, 144 bits (16+128), plus 4 flushing bits
 
 uint8_t syncd=0;                    //syncword found?
 uint8_t pushed;                     //counter for pushed symbols
@@ -162,7 +162,7 @@ int main(void)
                 //debug - dump LICH
                 if(lich_chunks_rcvd==0x3F)
                 {
-                    /*//DST
+                    //DST
                     printf("DST: ");
                     for(uint8_t i=0; i<6; i++)
                         printf("%02X", lsf[i]);
@@ -190,7 +190,7 @@ int main(void)
                     printf("CRC: ");
                     for(uint8_t i=0; i<2; i++)
                         printf("%02X", lsf[28+i]);
-                    printf("\n");*/
+                    printf("\n");
 
                     lich_chunks_rcvd=0; //reset all flags
                 }
@@ -202,15 +202,15 @@ int main(void)
                 }
 
                 //data part
-                memset((uint8_t*)frame_data, 0, 18);
-                decodePunctured(frame_data, enc_data, P2_pat, 272, 12);
+                uint32_t e=decodePunctured(frame_data, enc_data, P2_pat, 272, 12);
 
-                //dump data
-                for(uint8_t i=0; i<18; i++)
+                //dump data - first byte is empty
+                printf("FN: %02X%02X PLD: ", frame_data[1], frame_data[2]);
+                for(uint8_t i=3; i<19; i++)
                 {
-                    printf("%02X ", frame_data[i]);
+                    printf("%02X", frame_data[i]);
                 }
-                printf("\n");
+                printf(" e=%1.1f\n", (float)e/0xFFFF);
 
                 //job done
                 syncd=0;

@@ -56,7 +56,7 @@ uint32_t decode(uint8_t* out, const uint16_t* in, uint16_t len)
  * @param p_len: puncturing matrix length (entries).
  * @return number of bit errors corrected.
  */
-uint16_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct, uint16_t in_len, uint16_t p_len) //input length, puncturing pattern length
+uint32_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct, uint16_t in_len, uint16_t p_len) //input length, puncturing pattern length
 {
     if(in_len > 244*2)
 		fprintf((FILE*)STDERR_FILENO, "Input size exceeds max history\n");
@@ -83,7 +83,7 @@ uint16_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct,
 		p%=p_len;
 	}
 
-    return decode(out, umsg, u);
+    return decode(out, umsg, u) - (u-in_len)*0x7FFF;
 }
 
 /**
@@ -160,18 +160,20 @@ void decodeBit(uint16_t s0, uint16_t s1, size_t pos)
 uint32_t chainback(uint8_t* out, size_t pos, uint16_t len)
 {
     uint8_t state = 0;
-    size_t bitPos = len;
+    size_t bitPos = len+4;
+
+    memset(out, 0, (len-1)/8+1);
 
     while(bitPos > 0)
     {
         bitPos--;
         pos--;
-        uint8_t bit = history[pos]&((1<<(state>>4)));
+        uint16_t bit = history[pos]&((1<<(state>>4)));
         state >>= 1;
         if(bit)
         {
         	state |= 0x80;
-        	out[bitPos/8]|=1<<(bitPos%8);
+        	out[bitPos/8]|=1<<(7-(bitPos%8));
 		}
     }
 
