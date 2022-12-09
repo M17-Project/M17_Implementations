@@ -74,7 +74,7 @@ int main(void)
 
             //send dummy symbols (debug)
             float s=0.0;
-            for(uint8_t i=0; i<184/2; i++) //40ms * 4800 - 8 (syncword)
+            for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
                 write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
 
             /*printf("\tDATA: ");
@@ -100,7 +100,7 @@ int main(void)
 
             //send dummy symbols (debug)
             float s=0.0;
-            for(uint8_t i=0; i<184/2; i++) //40ms * 4800 - 8 (syncword)
+            for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
                 write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
 
             /*printf("DST: ");
