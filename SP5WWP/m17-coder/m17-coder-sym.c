@@ -14,12 +14,46 @@ struct LSF
 	uint8_t crc[2];
 } lsf;
 
-uint8_t data[16];
-
-uint16_t fn=0; //16-bit Frame Number (for the stream mode)
-
+uint8_t data[16];   //payload, packed bits
+uint16_t fn=0;      //16-bit Frame Number (for the stream mode)
 uint8_t got_lsf=0;  //have we filled the LSF struct yet?
 
+void send_Preamble(const uint8_t type)
+{
+    float symb;
+
+    if(type) //pre-BERT
+    {
+        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        {
+            symb=-3.0;
+            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            symb=+3.0;
+            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        }
+    }
+    else //pre-LSF
+    {
+        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        {
+            symb=+3.0;
+            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            symb=-3.0;
+            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        }
+    }
+}
+
+void send_Syncword(const uint16_t sword)
+{
+    float symb;
+
+    for(uint8_t i=0; i<16; i+=2)
+    {
+        symb=symbol_map[(sword>>(14-i))&3];
+        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+    }
+}
 
 //main routine
 int main(void)
@@ -35,10 +69,18 @@ int main(void)
             while(read(STDIN_FILENO, &(lsf.meta), 14)<14);
             while(read(STDIN_FILENO, data, 16)<16);
 
-            printf("\tDATA: ");
+            //send stream frame syncword
+            send_Syncword(SYNC_STR);
+
+            //send dummy symbols (debug)
+            float s=0.0;
+            for(uint8_t i=0; i<184/2; i++) //40ms * 4800 - 8 (syncword)
+                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+
+            /*printf("\tDATA: ");
             for(uint8_t i=0; i<16; i++)
                 printf("%02X", data[i]);
-            printf("\n");
+            printf("\n");*/
         }
         else //LSF
         {
@@ -50,7 +92,18 @@ int main(void)
 
             got_lsf=1;
 
-            printf("DST: ");
+            //send out the preamble and LSF
+            send_Preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+
+            //send LSF syncword
+            send_Syncword(SYNC_LSF);
+
+            //send dummy symbols (debug)
+            float s=0.0;
+            for(uint8_t i=0; i<184/2; i++) //40ms * 4800 - 8 (syncword)
+                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+
+            /*printf("DST: ");
             for(uint8_t i=0; i<6; i++)
                 printf("%02X", lsf.dst[i]);
             printf(" SRC: ");
@@ -62,7 +115,7 @@ int main(void)
             printf(" META: ");
             for(uint8_t i=0; i<14; i++)
                 printf("%02X", lsf.meta[i]);
-            printf("\n");
+            printf("\n");*/
         }
     }
 
