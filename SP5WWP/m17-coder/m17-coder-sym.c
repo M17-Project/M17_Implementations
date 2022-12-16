@@ -16,6 +16,7 @@ struct LSF
 
 uint8_t data[16];   //payload, packed bits
 uint16_t fn=0;      //16-bit Frame Number (for the stream mode)
+uint8_t lich_cnt=0; //0..5 LICH counter, derived from the Frame Number
 uint8_t got_lsf=0;  //have we filled the LSF struct yet?
 
 void send_Preamble(const uint8_t type)
@@ -72,6 +73,9 @@ int main(void)
             //send stream frame syncword
             send_Syncword(SYNC_STR);
 
+            //derive the LICH_CNT from the Frame Number
+            lich_cnt=fn%6;
+
             //send dummy symbols (debug)
             float s=0.0;
             for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
@@ -81,6 +85,13 @@ int main(void)
             for(uint8_t i=0; i<16; i++)
                 printf("%02X", data[i]);
             printf("\n");*/
+
+            //increment the Frame Number
+            fn++;
+
+            //debug-only
+            if(fn==6)
+                return 0;
         }
         else //LSF
         {
