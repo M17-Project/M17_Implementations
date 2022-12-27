@@ -23,6 +23,9 @@ const uint16_t SYNC_PKT = 0x75FF;
 const uint16_t SYNC_BER = 0xDF55;
 const uint16_t EOT_MRKR = 0x555D;
 
+//puncturing pattern P_2
+const uint8_t P_2[12]={1,1,1,1,1,1,1,1,1,1,1,0};
+
 //RRC filter - 10 samples per symbol, 8 symbols span
 const float taps[FLT_LEN]=
 {
