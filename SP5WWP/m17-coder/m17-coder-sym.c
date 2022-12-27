@@ -5,6 +5,7 @@
 
 #include "../inc/m17.h"
 #include "golay.h"
+#include "crc.h"
 
 struct LSF
 {
@@ -92,8 +93,6 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
 	//encode
 	for(uint8_t i=0; i<144+4; i++)
 	{
-		//uint8_t G1=(ud[i+0]                +ud[i+3]+ud[i+4])%2;
-		//uint8_t G2=(ud[i+0]+ud[i+1]+ud[i+2]        +ud[i+4])%2;
 		uint8_t G1=(ud[i+4]                +ud[i+1]+ud[i+0])%2;
         uint8_t G2=(ud[i+4]+ud[i+3]+ud[i+2]        +ud[i+0])%2;
 
@@ -115,6 +114,18 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
 	}
 
 	//printf("pb=%d\n", pb);
+}
+
+uint16_t LSF_CRC(struct LSF *in)
+{
+    uint8_t d[28];
+
+    memcpy(&d[0], in->dst, 6);
+    memcpy(&d[6], in->src, 6);
+    memcpy(&d[12], in->type, 2);
+    memcpy(&d[14], in->meta, 14);
+
+    return CRC_M17(d, 28);
 }
 
 //main routine
@@ -277,6 +288,11 @@ int main(void)
             while(read(STDIN_FILENO, &(lsf.type), 2)<2);
             while(read(STDIN_FILENO, &(lsf.meta), 14)<14);
             while(read(STDIN_FILENO, data, 16)<16);
+
+            //calculate LSF CRC
+            uint16_t ccrc=LSF_CRC(&lsf);
+            lsf.crc[0]=ccrc>>8;
+            lsf.crc[1]=ccrc&0xFF;
 
             got_lsf=1;
 
