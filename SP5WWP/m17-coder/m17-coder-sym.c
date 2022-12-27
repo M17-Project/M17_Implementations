@@ -103,13 +103,113 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
 			out[pb]=G1;
 			pb++;
 		}
-		if(P_2[p+1])
+
+		p++;
+		p%=pp_len;
+
+		if(P_2[p])
 		{
 			out[pb]=G2;
 			pb++;
 		}
 
-		p+=2;
+		p++;
+		p%=pp_len;
+	}
+
+	//printf("pb=%d\n", pb);
+}
+
+//out - unpacked bits
+//in - packed raw bits (LSF struct)
+void conv_Encode_LSF(uint8_t* out, struct LSF *in)
+{
+	uint8_t pp_len = sizeof(P_1);
+	uint8_t p=0;			//puncturing pattern index
+	uint16_t pb=0;			//pushed punctured bits
+	uint8_t ud[240+4+4];	//unpacked data
+
+	memset(ud, 0, 240+4+4);
+
+	//unpack DST
+	for(uint8_t i=0; i<8; i++)
+	{
+		ud[4+i]   =((in->dst[0])>>(7-i))&1;
+		ud[4+i+8] =((in->dst[1])>>(7-i))&1;
+		ud[4+i+16]=((in->dst[2])>>(7-i))&1;
+		ud[4+i+24]=((in->dst[3])>>(7-i))&1;
+		ud[4+i+32]=((in->dst[4])>>(7-i))&1;
+		ud[4+i+40]=((in->dst[5])>>(7-i))&1;
+	}
+
+	//unpack SRC
+	for(uint8_t i=0; i<8; i++)
+	{
+		ud[4+i+48]=((in->src[0])>>(7-i))&1;
+		ud[4+i+56]=((in->src[1])>>(7-i))&1;
+		ud[4+i+64]=((in->src[2])>>(7-i))&1;
+		ud[4+i+72]=((in->src[3])>>(7-i))&1;
+		ud[4+i+80]=((in->src[4])>>(7-i))&1;
+		ud[4+i+88]=((in->src[5])>>(7-i))&1;
+	}
+
+	//unpack TYPE
+	for(uint8_t i=0; i<8; i++)
+	{
+		ud[4+i+96] =((in->type[0])>>(7-i))&1;
+		ud[4+i+104]=((in->type[1])>>(7-i))&1;
+	}
+
+	//unpack META
+	for(uint8_t i=0; i<8; i++)
+	{
+		ud[4+i+112]=((in->meta[0])>>(7-i))&1;
+		ud[4+i+120]=((in->meta[1])>>(7-i))&1;
+		ud[4+i+128]=((in->meta[2])>>(7-i))&1;
+		ud[4+i+136]=((in->meta[3])>>(7-i))&1;
+		ud[4+i+144]=((in->meta[4])>>(7-i))&1;
+		ud[4+i+152]=((in->meta[5])>>(7-i))&1;
+		ud[4+i+160]=((in->meta[6])>>(7-i))&1;
+		ud[4+i+168]=((in->meta[7])>>(7-i))&1;
+		ud[4+i+176]=((in->meta[8])>>(7-i))&1;
+		ud[4+i+184]=((in->meta[9])>>(7-i))&1;
+		ud[4+i+192]=((in->meta[10])>>(7-i))&1;
+		ud[4+i+200]=((in->meta[11])>>(7-i))&1;
+		ud[4+i+208]=((in->meta[12])>>(7-i))&1;
+		ud[4+i+216]=((in->meta[13])>>(7-i))&1;
+	}
+
+	//unpack CRC
+	for(uint8_t i=0; i<8; i++)
+	{
+		ud[4+i+224]=((in->crc[0])>>(7-i))&1;
+		ud[4+i+232]=((in->crc[1])>>(7-i))&1;
+	}
+
+	//encode
+	for(uint8_t i=0; i<240+4; i++)
+	{
+		uint8_t G1=(ud[i+4]                +ud[i+1]+ud[i+0])%2;
+        uint8_t G2=(ud[i+4]+ud[i+3]+ud[i+2]        +ud[i+0])%2;
+
+		//printf("%d%d", G1, G2);
+
+		if(P_1[p])
+		{
+			out[pb]=G1;
+			pb++;
+		}
+
+		p++;
+		p%=pp_len;
+
+		if(P_1[p])
+		{
+			out[pb]=G2;
+			pb++;
+		}
+
+		p++;
 		p%=pp_len;
 	}
 
@@ -296,16 +396,42 @@ int main(void)
 
             got_lsf=1;
 
+            //encode LSF data
+            conv_Encode_LSF(enc_bits, &lsf);
+
             //send out the preamble and LSF
             send_Preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
 
             //send LSF syncword
             send_Syncword(SYNC_LSF);
 
-            //send dummy symbols (debug)
-            float s=0.0;
-            for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
+            //reorder bits
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+                rf_bits[i]=enc_bits[intrl_seq[i]];
+
+            //randomize
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+            {
+                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
+                {
+                    if(rf_bits[i])
+                        rf_bits[i]=0;
+                    else
+                        rf_bits[i]=1;
+                }
+            }
+
+            float s;
+            for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
+            {
+                s=symbol_map[rf_bits[2*i]*2+rf_bits[2*i+1]];
                 write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+            }
+
+            //send dummy symbols (debug)
+            /*float s=0.0;
+            for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
+                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));*/
 
             /*printf("DST: ");
             for(uint8_t i=0; i<6; i++)
@@ -319,6 +445,9 @@ int main(void)
             printf(" META: ");
             for(uint8_t i=0; i<14; i++)
                 printf("%02X", lsf.meta[i]);
+            printf(" CRC: ");
+            for(uint8_t i=0; i<2; i++)
+                printf("%02X", lsf.crc[i]);
             printf("\n");*/
         }
     }
