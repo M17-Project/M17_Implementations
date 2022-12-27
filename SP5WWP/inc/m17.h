@@ -23,6 +23,12 @@ const uint16_t SYNC_PKT = 0x75FF;
 const uint16_t SYNC_BER = 0xDF55;
 const uint16_t EOT_MRKR = 0x555D;
 
+//puncturing pattern P_1
+const uint8_t P_1[61]={1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+                         1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+                         1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+                         1,0,1,1,1,0,1,1,1,0,1,1};
+
 //puncturing pattern P_2
 const uint8_t P_2[12]={1,1,1,1,1,1,1,1,1,1,1,0};
 
