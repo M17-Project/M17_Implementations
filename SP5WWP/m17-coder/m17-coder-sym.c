@@ -62,6 +62,61 @@ void send_Syncword(const uint16_t sword)
     }
 }
 
+//out - unpacked bits
+//in - packed raw bits
+//fn - frame number
+void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
+{
+	uint8_t pp_len = sizeof(P_2);
+	uint8_t p=0;			//puncturing pattern index
+	uint16_t pb=0;			//pushed punctured bits
+	uint8_t ud[144+4+4];	//unpacked data
+
+	memset(ud, 0, 144+4+4);
+
+	//unpack frame number
+	for(uint8_t i=0; i<16; i++)
+	{
+		ud[4+i]=(fn>>(15-i))&1;
+	}
+
+	//unpack data
+	for(uint8_t i=0; i<16; i++)
+	{
+		for(uint8_t j=0; j<8; j++)
+		{
+			ud[4+16+i*8+j]=(in[i]>>(7-j))&1;
+		}
+	}
+
+	//encode
+	for(uint8_t i=0; i<144+4; i++)
+	{
+		//uint8_t G1=(ud[i+0]                +ud[i+3]+ud[i+4])%2;
+		//uint8_t G2=(ud[i+0]+ud[i+1]+ud[i+2]        +ud[i+4])%2;
+		uint8_t G1=(ud[i+4]                +ud[i+1]+ud[i+0])%2;
+        uint8_t G2=(ud[i+4]+ud[i+3]+ud[i+2]        +ud[i+0])%2;
+
+		//printf("%d%d", G1, G2);
+
+		if(P_2[p])
+		{
+			out[pb]=G1;
+			pb++;
+		}
+		if(P_2[p+1])
+		{
+			out[pb]=G2;
+			pb++;
+		}
+
+		p+=2;
+		p%=pp_len;
+	}
+
+	//printf("pb=%d\n", pb);
+}
+
 //main routine
 int main(void)
 {
@@ -172,6 +227,9 @@ int main(void)
                     enc_bits[i*8+j]=(lich_encoded[i]>>(7-j))&1;
             }
 
+            //encode the rest of the frame
+            conv_Encode_Frame(&enc_bits[96], data, fn);
+
             //reorder bits
             for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
                 rf_bits[i]=enc_bits[intrl_seq[i]];
@@ -209,7 +267,7 @@ int main(void)
             fn++;
 
             //debug-only
-            if(fn==6)
+            if(fn==6*10)
                 return 0;
         }
         else //LSF
