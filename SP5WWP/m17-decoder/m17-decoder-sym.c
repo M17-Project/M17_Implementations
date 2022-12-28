@@ -7,6 +7,7 @@
 #include "../inc/m17.h"
 #include "golay.h"
 #include "viterbi.h"
+#include "crc.h"
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
@@ -15,7 +16,7 @@ float pld[SYM_PER_PLD];             //raw frame symbols
 uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
 uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
 
-uint8_t lsf[30];                    //complete LSF
+uint8_t lsf[30+1];                  //complete LSF (one byte extra needed for the Viterbi decoder)
 uint16_t lich_chunk[96];            //raw, soft LSF chunk extracted from the LICH
 uint8_t lich_b[6];                  //48-bit decoded LICH
 uint8_t lich_cnt;                   //LICH_CNT
@@ -25,9 +26,8 @@ uint16_t enc_data[272];             //raw frame data soft bits
 uint8_t frame_data[19];             //decoded frame data, 144 bits (16+128), plus 4 flushing bits
 
 uint8_t syncd=0;                    //syncword found?
+uint8_t fl=0;                       //Frame=0 of LSF=1
 uint8_t pushed;                     //counter for pushed symbols
-
-extern const uint8_t P2_pat[12];
 
 //soft decodes LICH into a 6-byte array
 //input - soft bits
@@ -78,14 +78,18 @@ int main(void)
 
             //printf("%f\n", xcorr);
 
-            if(xcorr>62.0)
+
+            if(xcorr>62.0) //Frame syncword detected
             {
                 syncd=1;
                 pushed=0;
+                fl=0;
             }
-            else if(xcorr<-62)
+            else if(xcorr<-62) //LSF syncword
             {
-                printf("LSF\n");
+                syncd=1;
+                pushed=0;
+                fl=1;
             }
         }
         else
@@ -94,6 +98,7 @@ int main(void)
 
             if(pushed==SYM_PER_PLD)
             {
+                //common operations for all frame types
                 //decode symbols to soft dibits
                 for(uint8_t i=0; i<SYM_PER_PLD; i++)
                 {
@@ -147,22 +152,94 @@ int main(void)
                     d_soft_bit[i]=soft_bit[intrl_seq[i]];
                 }
 
-                //extract LICH
-                for(uint16_t i=0; i<96; i++)
+                //if it is a frame
+                if(!fl)
                 {
-                    lich_chunk[i]=d_soft_bit[i];
+                    //extract LICH
+                    for(uint16_t i=0; i<96; i++)
+                    {
+                        lich_chunk[i]=d_soft_bit[i];
+                    }
+
+                    //Golay decoder
+                    decode_LICH(lich_b, lich_chunk);
+                    lich_cnt=lich_b[5]>>5;
+                    lich_chunks_rcvd|=(1<<lich_cnt);
+                    memcpy(&lsf[lich_cnt*5], lich_b, 5);
+
+                    //debug - dump LICH
+                    if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
+                    {
+                        //DST
+                        printf("DST: ");
+                        for(uint8_t i=0; i<6; i++)
+                            printf("%02X", lsf[i]);
+                        printf(" ");
+
+                        //SRC
+                        printf("SRC: ");
+                        for(uint8_t i=0; i<6; i++)
+                            printf("%02X", lsf[6+i]);
+                        printf(" ");
+
+                        //TYPE
+                        printf("TYPE: ");
+                        for(uint8_t i=0; i<2; i++)
+                            printf("%02X", lsf[12+i]);
+                        printf(" ");
+
+                        //META
+                        printf("META: ");
+                        for(uint8_t i=0; i<14; i++)
+                            printf("%02X", lsf[14+i]);
+                        //printf(" ");
+
+                        //CRC
+                        //printf("CRC: ");
+                        //for(uint8_t i=0; i<2; i++)
+                            //printf("%02X", lsf[28+i]);
+                        if(CRC_M17(lsf, 30))
+                            printf(" LSF_CRC_ERR");
+                        else
+                            printf(" LSF_CRC_OK ");
+                        printf("\n");
+
+                        lich_chunks_rcvd=0; //reset all flags
+                    }
+
+                    //extract data
+                    for(uint16_t i=0; i<272; i++)
+                    {
+                        enc_data[i]=d_soft_bit[96+i];
+                    }
+
+                    //decode
+                    uint32_t e=decodePunctured(frame_data, enc_data, P_2, 272, 12);
+
+                    //dump data - first byte is empty
+                    printf("FN: %02X%02X PLD: ", frame_data[1], frame_data[2]);
+                    for(uint8_t i=3; i<19; i++)
+                    {
+                        printf("%02X", frame_data[i]);
+                    }
+                    printf(" e=%1.1f\n", (float)e/0xFFFF);
+
+                    //send codec2 stream to stdout
+                    //write(STDOUT_FILENO, &frame_data[3], 16);
                 }
-
-                //Golay decoder
-                decode_LICH(lich_b, lich_chunk);
-                lich_cnt=lich_b[5]>>5;
-                lich_chunks_rcvd|=(1<<lich_cnt);
-                memcpy(&lsf[lich_cnt*5], lich_b, 5);
-
-                //debug - dump LICH
-                if(lich_chunks_rcvd==0x3F)
+                else //lsf
                 {
-                    /*//DST
+                    printf("LSF\n");
+
+                    //decode
+                    uint32_t e=decodePunctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
+
+                    //shift the buffer 1 position left - get rid of the encoded flushing bits
+                    for(uint8_t i=0; i<30; i++)
+                        lsf[i]=lsf[i+1];
+
+                    //dump data
+                    //DST
                     printf("DST: ");
                     for(uint8_t i=0; i<6; i++)
                         printf("%02X", lsf[i]);
@@ -187,33 +264,17 @@ int main(void)
                     printf(" ");
 
                     //CRC
-                    printf("CRC: ");
-                    for(uint8_t i=0; i<2; i++)
-                        printf("%02X", lsf[28+i]);
-                    printf("\n");*/
+                    //printf("CRC: ");
+                    //for(uint8_t i=0; i<2; i++)
+                        //printf("%02X", lsf[28+i]);
+                    if(CRC_M17(lsf, 30))
+                        printf("LSF_CRC_ERR");
+                    else
+                        printf("LSF_CRC_OK ");
 
-                    lich_chunks_rcvd=0; //reset all flags
+                    //Viterbi error
+                    printf(" e=%1.1f\n", (float)e/0xFFFF);
                 }
-
-                //extract data
-                for(uint16_t i=0; i<272; i++)
-                {
-                    enc_data[i]=d_soft_bit[96+i];
-                }
-
-                //decode
-                uint32_t e=decodePunctured(frame_data, enc_data, P2_pat, 272, 12);
-
-                //dump data - first byte is empty
-                /*printf("FN: %02X%02X PLD: ", frame_data[1], frame_data[2]);
-                for(uint8_t i=3; i<19; i++)
-                {
-                    printf("%02X", frame_data[i]);
-                }
-                printf(" e=%1.1f\n", (float)e/0xFFFF);*/
-
-                //send codec2 stream to stdout
-                //write(STDOUT_FILENO, &frame_data[3], 16);
 
                 //job done
                 syncd=0;

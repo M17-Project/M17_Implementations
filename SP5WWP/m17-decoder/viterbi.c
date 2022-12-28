@@ -7,8 +7,6 @@
 #define K			5               //constraint length
 #define NUM_STATES	(1 << (K - 1))  //number of states
 
-const uint8_t P2_pat[12]={1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0}; //P_2 puncturing pattern for stream frames
-
 //vars
 uint32_t prevMetrics[NUM_STATES];
 uint32_t currMetrics[NUM_STATES];
@@ -56,15 +54,15 @@ uint32_t decode(uint8_t* out, const uint16_t* in, uint16_t len)
  * @param p_len: puncturing matrix length (entries).
  * @return number of bit errors corrected.
  */
-uint32_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct, uint16_t in_len, uint16_t p_len) //input length, puncturing pattern length
+uint32_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct, const uint16_t in_len, const uint16_t p_len)
 {
     if(in_len > 244*2)
 		fprintf((FILE*)STDERR_FILENO, "Input size exceeds max history\n");
 
-	uint16_t umsg[244*2];   //unpunctured message
-	uint8_t p=0;		    //puncturer matrix entry
-	uint16_t u=0;		    //bits count - unpunctured message
-    uint16_t i=0;           //bits read from the input message
+	uint16_t umsg[244*2];           //unpunctured message
+	uint8_t p=0;		            //puncturer matrix entry
+	uint16_t u=0;		            //bits count - unpunctured message
+    uint16_t i=0;                   //bits read from the input message
 
 	while(i<in_len)
 	{
