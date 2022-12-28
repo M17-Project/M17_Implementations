@@ -47,3 +47,5 @@ Console 2:
 ```
 cat fifo2 | ./m17-decoder-sym
 ```
+
+Hit the *Execte the flow graph* button in GNURadio and watch it roll.
