@@ -51,3 +51,6 @@ cat fifo2 | ./m17-decoder-sym
 ```
 
 Hit the *Execte the flow graph* button in GNURadio and watch it roll.
+
+Console 2 should show similar results, with the Frame Number advancing each frame:
+![image](https://user-images.githubusercontent.com/44336093/209792966-44a7813e-13b3-45d7-92f1-02bb1bdc219f.png)
