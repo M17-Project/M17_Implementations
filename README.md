@@ -6,7 +6,8 @@ Various implementations
 Written in C, it has all the components described by the protocol's specification of the stream mode:
 - convolutional encoder with soft Vitrerbi decoder (utilizing fixed point arithmetic),
 - Golay encoder with soft decoder (fixed point),
-- bit interleaver and randomizer
+- bit interleaver and randomizer,
+- cyclic redundancy check (CRC) validation
 There's no support for **any** encryption yet.
 
 ### Building
