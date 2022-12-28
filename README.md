@@ -1,7 +1,7 @@
 # M17_Implementations
 Various implementations
 
-## SP5WWP's implementation (/sp5wwp)
+## Woj's implementation (/SP5WWP)
 ### Overview
 Written in C, it has all the components described by the protocol's specification of the stream mode:
 - convolutional encoder with soft Vitrerbi decoder (utilizing fixed point arithmetic),
