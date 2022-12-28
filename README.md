@@ -21,7 +21,7 @@ Two executables are available:
 filtered with an appropriate filter vefore transmission, see the specification document for details.
 - `m17-decoder-sym` decodes a stream of floats at `stdin`, one sample per symbol. After a valid
 syncword is detected, decoding process starts. The program expects a stream of synchronized symbols
-at the input. See the `/grc/m17_streamer.grc` file for details.
+at the input. See the `/grc/symbol_recovery.grc` file for details.
 
 ### Testing
 Both the encoder and the decoder can be tested simultaneously. The test setup should look as follows:<br>
