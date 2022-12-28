@@ -8,6 +8,7 @@ Written in C, it has all the components described by the protocol's specificatio
 - Golay encoder with soft decoder (fixed point),
 - bit interleaver and randomizer,
 - cyclic redundancy check (CRC) validation
+
 There's no support for **any** encryption yet.
 
 ### Building
