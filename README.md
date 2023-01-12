@@ -7,7 +7,8 @@ Written in C, it has all the components described by the protocol's specificatio
 - convolutional encoder with soft Vitrerbi decoder (utilizing fixed point arithmetic),
 - Golay encoder with soft decoder (fixed point),
 - bit interleaver and randomizer,
-- cyclic redundancy check (CRC) validation
+- cyclic redundancy check (CRC) validation,
+- callsign decoder
 
 There's no support for **any** encryption yet.
 
