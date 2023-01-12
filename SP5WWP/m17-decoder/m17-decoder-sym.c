@@ -9,6 +9,9 @@
 #include "viterbi.h"
 #include "crc.h"
 
+#define DECODE_CALLSIGNS
+//#define SHOW_VITERBI_ERRS
+
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
 float xcorr;                        //cross correlation for finding syncwords
@@ -50,6 +53,40 @@ void decode_LICH(uint8_t* outp, const uint16_t* inp)
     tmp=golay24_sdecode(&inp[3*24]);
     outp[4]|=(tmp>>8)&0xF;
     outp[5]=tmp&0xFF;
+}
+
+//decodes a 6-byte long array to a callsign
+void decode_callsign(uint8_t *outp, const uint8_t *inp)
+{
+	uint64_t encoded=0;
+
+	//repack the data to a uint64_t
+	for(uint8_t i=0; i<6; i++)
+		encoded|=(uint64_t)inp[5-i]<<(8*i);
+
+	//check if the value is reserved (not a callsign)
+	if(encoded>=262144000000000ULL)
+	{
+        if(encoded==0xFFFFFFFFFFFF) //broadcast
+        {
+            sprintf(outp, "#BCAST");
+        }
+        else
+        {
+            outp[0]=0;
+        }
+
+        return;
+	}
+
+	//decode the callsign
+	uint8_t i=0;
+	while(encoded>0)
+	{
+		outp[i]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/."[encoded%40];
+		encoded/=40;
+		i++;
+	}
 }
 
 int main(void)
@@ -170,6 +207,18 @@ int main(void)
                     //debug - dump LICH
                     if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
                     {
+                        #ifdef DECODE_CALLSIGNS
+                        uint8_t d_dst[12], d_src[12]; //decoded strings
+
+                        decode_callsign(d_dst, &lsf[0]);
+                        decode_callsign(d_src, &lsf[6]);
+
+                        //DST
+                        printf("DST: %-9s ", d_dst);
+
+                        //SRC
+                        printf("SRC: %-9s ", d_src);
+                        #else
                         //DST
                         printf("DST: ");
                         for(uint8_t i=0; i<6; i++)
@@ -181,6 +230,7 @@ int main(void)
                         for(uint8_t i=0; i<6; i++)
                             printf("%02X", lsf[6+i]);
                         printf(" ");
+                        #endif
 
                         //TYPE
                         printf("TYPE: ");
@@ -222,7 +272,11 @@ int main(void)
                     {
                         printf("%02X", frame_data[i]);
                     }
+                    #ifdef SHOW_VITERBI_ERRS
                     printf(" e=%1.1f\n", (float)e/0xFFFF);
+                    #else
+                    printf("\n");
+                    #endif
 
                     //send codec2 stream to stdout
                     //write(STDOUT_FILENO, &frame_data[3], 16);
@@ -239,6 +293,18 @@ int main(void)
                         lsf[i]=lsf[i+1];
 
                     //dump data
+                    #ifdef DECODE_CALLSIGNS
+                    uint8_t d_dst[12], d_src[12]; //decoded strings
+
+                    decode_callsign(d_dst, &lsf[0]);
+                    decode_callsign(d_src, &lsf[6]);
+
+                    //DST
+                    printf("DST: %-9s ", d_dst);
+
+                    //SRC
+                    printf("SRC: %-9s ", d_src);
+                    #else
                     //DST
                     printf("DST: ");
                     for(uint8_t i=0; i<6; i++)
@@ -250,6 +316,7 @@ int main(void)
                     for(uint8_t i=0; i<6; i++)
                         printf("%02X", lsf[6+i]);
                     printf(" ");
+                    #endif
 
                     //TYPE
                     printf("TYPE: ");
@@ -272,8 +339,12 @@ int main(void)
                     else
                         printf("LSF_CRC_OK ");
 
-                    //Viterbi error
+                    //Viterbi decoder errors
+                    #ifdef SHOW_VITERBI_ERRS
                     printf(" e=%1.1f\n", (float)e/0xFFFF);
+                    #else
+                    printf("\n");
+                    #endif
                 }
 
                 //job done
