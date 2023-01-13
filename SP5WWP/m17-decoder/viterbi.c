@@ -162,7 +162,7 @@ uint32_t chainback(uint8_t* out, size_t pos, uint16_t len)
 
     memset(out, 0, (len-1)/8+1);
 
-    while(bitPos > 0)
+    while(pos > 0)
     {
         bitPos--;
         pos--;

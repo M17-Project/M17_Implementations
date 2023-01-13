@@ -40,7 +40,7 @@ uint16_t SoftToInt(const uint16_t* in, uint8_t len)
 //result=a/b
 uint16_t Div16(uint16_t a, uint16_t b)
 {
-	uint32_t aa=a<<16;
+	uint32_t aa=(uint32_t)a<<16;
 	uint32_t r=aa/b;
 
 	if(r<=0xFFFF)
