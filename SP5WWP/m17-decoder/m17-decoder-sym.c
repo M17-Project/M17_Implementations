@@ -94,7 +94,7 @@ int main(void)
     while(1)
     {
         //wait for another symbol
-        while(read(STDIN_FILENO, (uint8_t*)&sample, 4)<4);
+        while(fread((uint8_t*)&sample, 1, 4, stdin)<1);
 
         if(!syncd)
         {

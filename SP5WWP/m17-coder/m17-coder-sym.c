@@ -241,11 +241,11 @@ int main(void)
         if(got_lsf) //stream frames
         {
             //we could discard the data we already have
-            while(read(STDIN_FILENO, &(lsf.dst), 6)<6);
-            while(read(STDIN_FILENO, &(lsf.src), 6)<6);
-            while(read(STDIN_FILENO, &(lsf.type), 2)<2);
-            while(read(STDIN_FILENO, &(lsf.meta), 14)<14);
-            while(read(STDIN_FILENO, data, 16)<16);
+            while(fread(&(lsf.dst), 1, 6, stdin)<1);
+            while(fread(&(lsf.src), 1, 6, stdin)<1);
+            while(fread(&(lsf.type), 1, 2, stdin)<1);
+            while(fread(&(lsf.meta), 1, 14, stdin)<1);
+            while(fread(data, 1, 16, stdin)<1);
 
             //send stream frame syncword
             send_Syncword(SYNC_STR);
@@ -383,11 +383,11 @@ int main(void)
         }
         else //LSF
         {
-            while(read(STDIN_FILENO, &(lsf.dst), 6)<6);
-            while(read(STDIN_FILENO, &(lsf.src), 6)<6);
-            while(read(STDIN_FILENO, &(lsf.type), 2)<2);
-            while(read(STDIN_FILENO, &(lsf.meta), 14)<14);
-            while(read(STDIN_FILENO, data, 16)<16);
+            while(fread(&(lsf.dst), 1, 6, stdin)<1);
+            while(fread(&(lsf.src), 1, 6, stdin)<1);
+            while(fread(&(lsf.type), 1, 2, stdin)<1);
+            while(fread(&(lsf.meta), 1, 14, stdin)<1);
+            while(fread(data, 1, 16, stdin)<1);
 
             //calculate LSF CRC
             uint16_t ccrc=LSF_CRC(&lsf);
