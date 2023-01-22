@@ -19,7 +19,7 @@ Simply `cd` to the directory of interest and
 ### Capabilities
 Two executables are available:
 - `m17-coder-sym` is used to convert a raw binary data bitstream to symbols. Symbol stream has to be
-filtered with an appropriate filter vefore transmission, see the specification document for details.
+filtered with an appropriate filter before transmission, see the specification document for details.
 - `m17-decoder-sym` decodes a stream of floats at `stdin`, one sample per symbol. After a valid
 syncword is detected, decoding process starts. The program expects a stream of synchronized symbols
 at the input. See the `/grc/symbol_recovery.grc` file for details.
