@@ -1,6 +1,9 @@
 #ifndef M17_CONSTS
 #define M17_CONSTS
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 #define FLT_LEN             81  //baseband filter length (number of taps)
 #define SW_LEN              80  //syncword detector length
 #define XC_LEN              90  //cross-correlator lookback length in samples
@@ -98,5 +101,8 @@ const uint16_t intrl_seq[368]=
 	32, 169, 122, 259, 212, 349, 302, 71, 24, 161, 114, 251, 204, 341, 294, 63,
 	16, 153, 106, 243, 196, 333, 286, 55, 8, 145, 98, 235, 188, 325, 278, 47
 };
+#ifdef __cplusplus
+}
+#endif
 
 #endif
