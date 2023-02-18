@@ -100,7 +100,6 @@ void decode_callsign(uint8_t *outp, const uint8_t *inp)
 	}
 }
 
-
     m17_decoder::sptr
     m17_decoder::make()
     {
