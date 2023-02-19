@@ -1,6 +1,7 @@
 options:
   parameters:
     author: SP5WWP
+    catch_exceptions: 'True'
     category: '[GRC Hier Blocks]'
     cmake_opt: ''
     comment: ''
@@ -27,7 +28,7 @@ options:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [520, 12.0]
+    coordinate: [384, 8.0]
     rotation: 0
     state: enabled
 
@@ -46,7 +47,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1040, 192.0]
+    coordinate: [1008, 192.0]
     rotation: 0
     state: true
 - name: blocks_stream_mux_0
@@ -84,7 +85,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [584, 188.0]
+    coordinate: [584, 184.0]
     rotation: 0
     state: enabled
 - name: blocks_vector_source_x_0
@@ -104,7 +105,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [112, 12.0]
+    coordinate: [112, 8.0]
     rotation: 0
     state: true
 - name: blocks_vector_source_x_0_0
@@ -144,7 +145,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [112, 172.0]
+    coordinate: [112, 176.0]
     rotation: 0
     state: true
 - name: blocks_vector_source_x_0_2
@@ -165,7 +166,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [112, 332.0]
+    coordinate: [112, 352.0]
     rotation: 0
     state: true
 - name: blocks_vector_source_x_0_2_0
@@ -186,7 +187,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [112, 252.0]
+    coordinate: [112, 264.0]
     rotation: 0
     state: true
 - name: m17_m17_coder_0
@@ -201,7 +202,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [752, 192.0]
+    coordinate: [744, 192.0]
     rotation: 0
     state: true
 - name: m17_m17_decoder_0
@@ -216,7 +217,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [888, 192.0]
+    coordinate: [872, 192.0]
     rotation: 0
     state: true
 - name: note_0
@@ -298,3 +299,4 @@ connections:
 
 metadata:
   file_format: 1
+  grc_version: 3.10.5.1
