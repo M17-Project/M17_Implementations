@@ -16,8 +16,10 @@ meaning that variables must be set to help GNU Radio Companion find the Python l
 ```
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib/x86_64-linux-gnu/
 export PYTHONPATH=/usr/local/lib/python3.11/dist-packages/
+```
 
 where the ``LD_LIBRARY_PATH`` setting results from
+
 ```
 find /usr/local/ -name libgnuradio-m17.so.1.0.0 -print
 ```
