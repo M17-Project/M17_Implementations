@@ -127,7 +127,7 @@ void decode_callsign(uint8_t *outp, const uint8_t *inp)
     void
     m17_decoder_impl::forecast (int noutput_items, gr_vector_int &ninput_items_required)
     {
-      /* <+forecast+> e.g. ninput_items_required[0] = noutput_items */
+      ninput_items_required[0] = 0; //  noutput_items;
     }
 
     int
@@ -429,7 +429,7 @@ uint8_t pushed;                     //counter for pushed symbols
       consume_each (noutput_items);
 
       // Tell runtime system how many output items we produced.
-      return noutput_items;
+      return 0;
     }
 
   } /* namespace m17 */

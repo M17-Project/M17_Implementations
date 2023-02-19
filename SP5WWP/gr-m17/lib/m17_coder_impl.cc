@@ -285,7 +285,7 @@ uint16_t LSF_CRC(struct LSF *in)
     void
     m17_coder_impl::forecast (int noutput_items, gr_vector_int &ninput_items_required)
     {
-      /* <+forecast+> e.g. ninput_items_required[0] = noutput_items */
+      ninput_items_required[0] = noutput_items;
     }
 
     int
@@ -532,7 +532,7 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
       consume_each (noutput_items);
 
       // Tell runtime system how many output items we produced.
-      return noutput_items;
+      return countout;
     }
 
   } /* namespace m17 */
