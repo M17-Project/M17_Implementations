@@ -46,7 +46,7 @@ struct LSF
 	uint8_t crc[2];
 } lsf;
 
-void send_Preamble(const uint8_t type)
+void send_Preamble(const uint8_t type,float *out, int *counterout)
 {
     float symb;
 
@@ -55,9 +55,13 @@ void send_Preamble(const uint8_t type)
         for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
         {
             symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            // write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[*counterout]=symb;
+            *counterout=(*counterout)+1;
             symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            // write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[*counterout]=symb;
+            *counterout=(*counterout)+1;
         }
     }
     else //pre-LSF
@@ -65,21 +69,27 @@ void send_Preamble(const uint8_t type)
         for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
         {
             symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            // write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[*counterout]=symb;
+            *counterout=(*counterout)+1;
             symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            // write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[*counterout]=symb;
+            *counterout=(*counterout)+1;
         }
     }
 }
 
-void send_Syncword(const uint16_t sword)
+void send_Syncword(const uint16_t sword, float *out, int *counterout)
 {
     float symb;
 
     for(uint8_t i=0; i<16; i+=2)
     {
         symb=symbol_map[(sword>>(14-i))&3];
-        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        out[*counterout]=symb;
+        *counterout=(*counterout)+1;
+        // write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
     }
 }
 
@@ -298,6 +308,7 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter, derived from the Frame 
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 
       int countin=0;
+      int countout=0;
 
     {
         if(got_lsf) //stream frames
@@ -310,7 +321,7 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 	    for (int i=0;i<16;i++) {data[i]=in[countin];countin++;}
 
             //send stream frame syncword
-            send_Syncword(SYNC_STR);
+            send_Syncword(SYNC_STR,out,&countout);
 
             //derive the LICH_CNT from the Frame Number
             lich_cnt=fn%6;
@@ -428,7 +439,9 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
             for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
             {
                 s=symbol_map[rf_bits[2*i]*2+rf_bits[2*i+1]];
-                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+                // write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+                out[countout]=s;
+                countout++;
             }
 
             /*printf("\tDATA: ");
@@ -462,10 +475,10 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
             conv_Encode_LSF(enc_bits, &lsf);
 
             //send out the preamble and LSF
-            send_Preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+            send_Preamble(0,out,&countout); //0 - LSF preamble, as opposed to 1 - BERT preamble
 
             //send LSF syncword
-            send_Syncword(SYNC_LSF);
+            send_Syncword(SYNC_LSF,out,&countout);
 
             //reorder bits
             for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -487,7 +500,8 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
             for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
             {
                 s=symbol_map[rf_bits[2*i]*2+rf_bits[2*i+1]];
-                out[i]=s;
+                out[countout]=s;
+                countout++;
             }
 
             //send dummy symbols (debug)
