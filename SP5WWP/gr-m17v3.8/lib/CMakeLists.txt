@@ -26,6 +26,10 @@ include(GrPlatform) #define LIB_SUFFIX
 list(APPEND m17_sources
     m17_coder_impl.cc
     m17_decoder_impl.cc
+../../m17-coder/golay.c
+../../m17-decoder/crc.c
+../../m17-decoder/golay.c
+../../m17-decoder/viterbi.c
 )
 
 set(m17_sources "${m17_sources}" PARENT_SCOPE)
