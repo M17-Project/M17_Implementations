@@ -7,6 +7,8 @@
 #include "golay.h"
 #include "crc.h"
 
+//#define FN60_DEBUG
+
 struct LSF
 {
 	uint8_t dst[6];
@@ -61,6 +63,17 @@ void send_Syncword(const uint16_t sword)
         symb=symbol_map[(sword>>(14-i))&3];
         write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
     }
+}
+
+//send the data (can be used for both LSF and frames)
+void send_data(uint8_t* in)
+{
+	float s=0.0;
+	for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
+	{
+		s=symbol_map[in[2*i]*2+in[2*i+1]];
+		write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+	}
 }
 
 //out - unpacked bits
@@ -362,12 +375,8 @@ int main(void)
             for(uint8_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
                 write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));*/
 
-            float s;
-            for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
-            {
-                s=symbol_map[rf_bits[2*i]*2+rf_bits[2*i+1]];
-                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
-            }
+			//send frame data
+			send_data(rf_bits);
 
             /*printf("\tDATA: ");
             for(uint8_t i=0; i<16; i++)
@@ -378,8 +387,10 @@ int main(void)
             fn++;
 
             //debug-only
+			#ifdef FN60_DEBUG
             if(fn==6*10)
                 return 0;
+			#endif
         }
         else //LSF
         {
@@ -400,10 +411,10 @@ int main(void)
             conv_Encode_LSF(enc_bits, &lsf);
 
             //send out the preamble and LSF
-            send_Preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+			send_Preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
 
             //send LSF syncword
-            send_Syncword(SYNC_LSF);
+			send_Syncword(SYNC_LSF);
 
             //reorder bits
             for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -421,12 +432,8 @@ int main(void)
                 }
             }
 
-            float s;
-            for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
-            {
-                s=symbol_map[rf_bits[2*i]*2+rf_bits[2*i+1]];
-                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
-            }
+			//send LSF data
+			send_data(rf_bits);
 
             //send dummy symbols (debug)
             /*float s=0.0;
@@ -448,9 +455,9 @@ int main(void)
             printf(" CRC: ");
             for(uint8_t i=0; i<2; i++)
                 printf("%02X", lsf.crc[i]);
-            printf("\n");*/
-        }
-    }
+			printf("\n");*/
+		}
+	}
 
 	return 0;
 }
