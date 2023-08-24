@@ -4,7 +4,7 @@ Various implementations
 ## Woj's implementation (/SP5WWP)
 ### Overview
 Written in C, it has all the components described by the protocol's specification of the stream mode:
-- convolutional encoder with soft Vitrerbi decoder (utilizing fixed point arithmetic),
+- convolutional encoder with soft Viterbi decoder (utilizing fixed point arithmetic),
 - Golay encoder with soft decoder (fixed point),
 - bit interleaver and randomizer,
 - cyclic redundancy check (CRC) validation,
