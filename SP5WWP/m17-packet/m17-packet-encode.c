@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <math.h>
 
 #include "../inc/m17.h"
 #include "crc.h"
@@ -23,30 +24,32 @@ uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded sou
 uint8_t can=0;                                              //Channel Access Number, default: 0
 uint16_t num_bytes=0;                                       //number of bytes in packet, max 800-2=798
 uint8_t data[25];                                           //raw payload, packed bits
-uint8_t got_lsf=0;                                          //have we filled the LSF struct yet?
+uint8_t fname[128]={'\0'};                                  //output file
 
-void send_Preamble(const uint8_t type)
+FILE* fp;
+float full_packet[6912+88];                                 //full packet, symbols as floats - (40+40+32*40+40+40)/1000*4800
+                                                            //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
+
+//type - 0 - preamble before LSF (standard)
+//type - 1 - preamble before BERT transmission
+void fill_Preamble(float* out, const uint8_t type)
 {
     float symb;
 
     if(type) //pre-BERT
     {
-        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
         {
-            symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
-            symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[2*i]  =-3.0;
+            out[2*i+1]=+3.0;
         }
     }
     else //pre-LSF
     {
-        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
         {
-            symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
-            symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            out[2*i]  =+3.0;
+            out[2*i+1]=-3.0;
         }
     }
 }
@@ -277,8 +280,9 @@ uint8_t encode_callsign(uint64_t* out, const uint8_t* inp)
 int main(int argc, char* argv[])
 {
     //scan command line options for input data
-    //TODO: support for strings with spaces
-    if(argc>=2)
+    //TODO: support for strings with spaces, the code below is NOT foolproof!
+    //the user has to provide a minimum of 2 parameters: number of bytes and output filename
+    if(argc>=4)
     {
         for(uint8_t i=1; i<argc-1; i++)
         {
@@ -324,6 +328,16 @@ int main(int argc, char* argv[])
                         return -1;
                     }
                 }
+                else if(argv[i][1]=='o') //-o - output filename
+                {
+                    if(strlen(argv[i+1])>0)
+                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
+                    else
+                    {
+                        fprintf(stderr, "Invalid filename. Exiting...\n");
+                        return -1;
+                    }
+                }
                 else
                 {
                     fprintf(stderr, "Unknown param. Exiting...\n");
@@ -338,10 +352,15 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    //assert number of bytes
+    //assert number of bytes and filename
     if(num_bytes==0)
     {
         fprintf(stderr, "Number of bytes not set. Exiting...\n");
+        return -1;
+    }
+    else if(strlen(fname)==0)
+    {
+        fprintf(stderr, "Filename not specified. Exiting...\n");
         return -1;
     }
 
@@ -365,10 +384,12 @@ int main(int argc, char* argv[])
 
     //encode LSF data
     conv_Encode_LSF(enc_bits, &lsf);
-    /*
-    //send preamble
-    send_Preamble(0);
 
+    //fill preamble
+    memset((uint8_t*)full_packet, 0, sizeof(float)*(6912+88));
+    fill_Preamble(full_packet, 0);
+
+    /*
     //send LSF syncword
     send_Syncword(SYNC_LSF);
 
@@ -416,5 +437,14 @@ int main(int argc, char* argv[])
 	//send packet frame data
 	send_data(rf_bits);
     */
+
+    fp=fopen(fname, "wb");
+    for(uint16_t i=0; i<SYM_PER_FRA; i++)
+    {
+        int16_t val=roundf(full_packet[i]*RRC_DEV);
+        fwrite(&val, 2, 1, fp);
+    }
+    fclose(fp);
+
 	return 0;
 }

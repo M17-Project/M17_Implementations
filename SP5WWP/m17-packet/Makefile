@@ -1,5 +1,5 @@
 m17-packet-encode: m17-packet-encode.c crc.c
-	gcc -O2 -w -lm m17-packet-encode.c crc.c -o m17-packet-encode
+	gcc -O2 -w m17-packet-encode.c crc.c -o m17-packet-encode -lm
 
 clean:
 	rm m17-packet-encode
