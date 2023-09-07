@@ -7,6 +7,7 @@ extern "C" {
 #define FLT_LEN             81          //baseband filter length (number of taps)
 #define SW_LEN              80          //syncword detector length
 #define XC_LEN              90          //cross-correlator lookback length in samples
+#define SYM_PER_SWD         8           //symbols per syncword
 #define SYM_PER_PLD         184         //symbols per payload in a frame
 #define SYM_PER_FRA         192         //symbols per whole 40 ms frame
 #define RRC_DEV             7168.0f     //.rrc file deviation for +1.0 symbol

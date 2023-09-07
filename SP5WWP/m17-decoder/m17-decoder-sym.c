@@ -10,7 +10,7 @@
 #include "crc.h"
 
 #define DECODE_CALLSIGNS
-//#define SHOW_VITERBI_ERRS
+#define SHOW_VITERBI_ERRS
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords

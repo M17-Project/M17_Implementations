@@ -23,12 +23,16 @@ uint8_t dst_raw[10]={'A', 'L', 'L', '\0'};                  //raw, unencoded des
 uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
 uint16_t num_bytes=0;                                       //number of bytes in packet, max 800-2=798
-uint8_t data[25];                                           //raw payload, packed bits
+//uint8_t data[25];                                           //raw payload, packed bits
 uint8_t fname[128]={'\0'};                                  //output file
 
 FILE* fp;
 float full_packet[6912+88];                                 //full packet, symbols as floats - (40+40+32*40+40+40)/1000*4800
                                                             //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
+uint16_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
+uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
+uint8_t pkt_chunk[25+1];                                    //chunk of Packet Data, up to 25 bytes plus 6 bits of Packet Metadata
+uint8_t full_packet_data[32*25];                            //full packet data, bytes
 
 //type - 0 - preamble before LSF (standard)
 //type - 1 - preamble before BERT transmission
@@ -54,25 +58,28 @@ void fill_Preamble(float* out, const uint8_t type)
     }
 }
 
-void send_Syncword(const uint16_t sword)
+void fill_Syncword(float* out, uint16_t* cnt, const uint16_t sword)
 {
-    float symb;
+    float symb=0.0f;
 
     for(uint8_t i=0; i<16; i+=2)
     {
         symb=symbol_map[(sword>>(14-i))&3];
-        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        out[*cnt]=symb;
+        (*cnt)++;
     }
 }
 
-//send the data (can be used for both LSF and frames)
-void send_data(uint8_t* in)
+//fill packet symbols array with data (can be used for both LSF and frames)
+void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
 {
-	float s=0.0;
+	float symb=0.0f;
+
 	for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
 	{
-		s=symbol_map[in[2*i]*2+in[2*i+1]];
-		write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+		symb=symbol_map[in[2*i]*2+in[2*i+1]];
+		out[*cnt]=symb;
+		(*cnt)++;
 	}
 }
 
@@ -388,10 +395,10 @@ int main(int argc, char* argv[])
     //fill preamble
     memset((uint8_t*)full_packet, 0, sizeof(float)*(6912+88));
     fill_Preamble(full_packet, 0);
+    pkt_sym_cnt=SYM_PER_FRA;
 
-    /*
     //send LSF syncword
-    send_Syncword(SYNC_LSF);
+    fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
 
     //reorder bits
     for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -409,14 +416,12 @@ int main(int argc, char* argv[])
         }
     }
 
-    //send LSF
-    send_data(rf_bits);
+    //fill packet with LSF
+    fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
+    /*
     //encode the packet frame
     conv_Encode_Frame();
-
-    //send packet frame syncword
-    send_Syncword(SYNC_PKT);
 
     //reorder bits
     for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -438,8 +443,59 @@ int main(int argc, char* argv[])
 	send_data(rf_bits);
     */
 
+    //read Packet Data from stdin
+    memset(full_packet_data, 0, 32*25);
+    memset(pkt_chunk, 0, 25+1);
+    pkt_cnt=0;
+    uint16_t tmp=num_bytes;
+    while(num_bytes)
+    {
+        //send packet frame syncword
+        fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+
+        if(num_bytes>=25)
+        {
+            while(fread(pkt_chunk, 1, 25, stdin)<1);
+            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
+            pkt_chunk[25]=pkt_cnt<<2;
+            printf("FN:%02d (full frame)\n", pkt_cnt);
+            num_bytes-=25;
+        }
+        else
+        {
+            while(fread(pkt_chunk, 1, num_bytes, stdin)<1);
+            memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
+            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
+            pkt_chunk[25]=pkt_cnt<<2;
+            printf("FN:%02d (partial frame)\n", pkt_cnt);
+            num_bytes=0;
+        }
+
+        pkt_cnt++;
+    }
+
+    num_bytes=tmp; //bring back the num_bytes value
+
+    printf("DATA: %s\n", full_packet_data);
+
+    //send packet frame syncword - last frame with CRC and EOT bit
+    fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+
+    uint16_t crc=CRC_M17(full_packet_data, num_bytes);
+    pkt_chunk[0]=crc>>8; //2-byte CRC
+    pkt_chunk[1]=crc&0xFF;
+    memset(&pkt_chunk[2], 0, 23);
+    pkt_chunk[25]=(1<<7)|((num_bytes%25)<<2); //EOT bit set to 1, counter set to the amount of bytes in the previous frame
+
+    printf("CRC: %04X\n", crc);
+
+    //send EOT
+    for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
+        fill_Syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
+
+    //dump baseband to a file
     fp=fopen(fname, "wb");
-    for(uint16_t i=0; i<SYM_PER_FRA; i++)
+    for(uint16_t i=0; i<pkt_sym_cnt; i++)
     {
         int16_t val=roundf(full_packet[i]*RRC_DEV);
         fwrite(&val, 2, 1, fp);
