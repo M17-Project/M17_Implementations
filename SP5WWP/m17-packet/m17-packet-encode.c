@@ -34,6 +34,10 @@ uint8_t pkt_cnt=0;                                          //packet frame count
 uint8_t pkt_chunk[25+1];                                    //chunk of Packet Data, up to 25 bytes plus 6 bits of Packet Metadata
 uint8_t full_packet_data[32*25];                            //full packet data, bytes
 
+uint8_t out_type=0;                                         //output file type - 0 - raw int16 filtered samples (.rrc) - default
+                                                            //                   1 - int16 symbol stream
+                                                            //                   2 - binary stream (TODO)
+
 //type - 0 - preamble before LSF (standard)
 //type - 1 - preamble before BERT transmission
 void fill_Preamble(float* out, const uint8_t type)
@@ -85,38 +89,32 @@ void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
 
 //out - unpacked bits
 //in - packed raw bits
-//fn - frame number
-void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
+void conv_Encode_Frame(uint8_t* out, uint8_t* in)
 {
-	uint8_t pp_len = sizeof(P_2);
+	uint8_t pp_len = sizeof(P_3);
 	uint8_t p=0;			//puncturing pattern index
 	uint16_t pb=0;			//pushed punctured bits
-	uint8_t ud[144+4+4];	//unpacked data
+	uint8_t ud[206+4+4];	//unpacked data
 
-	memset(ud, 0, 144+4+4);
-
-	//unpack frame number
-	for(uint8_t i=0; i<16; i++)
-	{
-		ud[4+i]=(fn>>(15-i))&1;
-	}
+	memset(ud, 0, 206+4+4);
 
 	//unpack data
-	for(uint8_t i=0; i<16; i++)
+	for(uint8_t i=0; i<26; i++)
 	{
 		for(uint8_t j=0; j<8; j++)
 		{
-			ud[4+16+i*8+j]=(in[i]>>(7-j))&1;
+            if(i<=24 || j<=5)
+                ud[4+i*8+j]=(in[i]>>(7-j))&1;
 		}
 	}
 
 	//encode
-	for(uint8_t i=0; i<144+4; i++)
+	for(uint8_t i=0; i<206+4; i++)
 	{
 		uint8_t G1=(ud[i+4]                +ud[i+1]+ud[i+0])%2;
         uint8_t G2=(ud[i+4]+ud[i+3]+ud[i+2]        +ud[i+0])%2;
 
-		//printf("%d%d", G1, G2);
+		//fprintf(stderr, "%d%d", G1, G2);
 
 		if(P_2[p])
 		{
@@ -137,7 +135,7 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in, uint16_t fn)
 		p%=pp_len;
 	}
 
-	//printf("pb=%d\n", pb);
+	//fprintf(stderr, "pb=%d\n", pb);
 }
 
 //out - unpacked bits
@@ -212,7 +210,7 @@ void conv_Encode_LSF(uint8_t* out, struct LSF *in)
 		uint8_t G1=(ud[i+4]                +ud[i+1]+ud[i+0])%2;
         uint8_t G2=(ud[i+4]+ud[i+3]+ud[i+2]        +ud[i+0])%2;
 
-		//printf("%d%d", G1, G2);
+		//fprintf(stderr, "%d%d", G1, G2);
 
 		if(P_1[p])
 		{
@@ -233,7 +231,7 @@ void conv_Encode_LSF(uint8_t* out, struct LSF *in)
 		p%=pp_len;
 	}
 
-	//printf("pb=%d\n", pb);
+	//fprintf(stderr, "pb=%d\n", pb);
 }
 
 uint16_t LSF_CRC(struct LSF *in)
@@ -295,7 +293,7 @@ int main(int argc, char* argv[])
         {
             if(argv[i][0]=='-')
             {
-                if(argv[i][1]=='d') //-d - destination
+                if(argv[i][1]=='D') //-D - destination
                 {
                     if(strlen(argv[i+1])<=9)
                         memcpy(dst_raw, &argv[i+1][0], strlen(&argv[i+1][0]));
@@ -305,7 +303,7 @@ int main(int argc, char* argv[])
                         return -1;
                     }
                 }
-                else if(argv[i][1]=='s') //-s - source
+                else if(argv[i][1]=='S') //-S - source
                 {
                     if(strlen(argv[i+1])<=9)
                         memcpy(src_raw, &argv[i+1][0], strlen(&argv[i+1][0]));
@@ -315,7 +313,7 @@ int main(int argc, char* argv[])
                         return -1;
                     }
                 }
-                else if(argv[i][1]=='c') //-c - CAN
+                else if(argv[i][1]=='C') //-C - CAN
                 {
                     if(atoi(argv[i+1])<=15)
                         can=atoi(&argv[i+1]);
@@ -345,9 +343,21 @@ int main(int argc, char* argv[])
                         return -1;
                     }
                 }
+                else if(argv[i][1]=='r') //-r - raw filtered output
+                {
+                    out_type=0; //default
+                }
+                else if(argv[i][1]=='s') //-s - symbols output
+                {
+                    out_type=1;
+                }
+                else if(argv[i][1]=='x') //-x - binary output
+                {
+                    out_type=2;
+                }
                 else
                 {
-                    fprintf(stderr, "Unknown param. Exiting...\n");
+                    fprintf(stderr, "Unknown param detected. Exiting...\n");
                     return -1; //unknown option
                 }
             }
@@ -355,7 +365,16 @@ int main(int argc, char* argv[])
     }
     else
     {
-        fprintf(stderr, "Not enough params. Exiting...\n");
+        fprintf(stderr, "Not enough params. Usage:\n");
+        fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,");
+        fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for boradcast,");
+        fprintf(stderr, "-C - Channel Access Number (0..15, default - 10),");
+        fprintf(stderr, "-n - number of bytes (1 to 798),");
+        fprintf(stderr, "-o - output file path/name,");
+        fprintf(stderr, "Output formats:\n");
+        //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),");
+        fprintf(stderr, "-r - raw audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),");
+        fprintf(stderr, "-s - signed 16-bit LE symbols output\n");
         return -1;
     }
 
@@ -370,6 +389,11 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Filename not specified. Exiting...\n");
         return -1;
     }
+    else if(out_type==2)
+    {
+        fprintf(stderr, "Binary output file type not supported yet. Exiting...\n");
+        return -1;
+    }
 
     //encode dst, src for the lsf struct
     uint64_t dst_encoded=0, src_encoded=0;
@@ -381,13 +405,18 @@ int main(int argc, char* argv[])
         lsf.dst[5-i]=(dst_encoded>>(i*8))&0xFF;
         lsf.src[5-i]=(src_encoded>>(i*8))&0xFF;
     }
-    printf("DST: %s\t%012lX\nSRC: %s\t%012lX\n", dst_raw, dst_encoded, src_raw, src_encoded);
-    //printf("DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
-    //printf("SRC: %02X %02X %02X %02X %02X %02X\n", lsf.src[0], lsf.src[1], lsf.src[2], lsf.src[3], lsf.src[4], lsf.src[5]);
+    fprintf(stderr, "DST: %s\t%012lX\nSRC: %s\t%012lX\n", dst_raw, dst_encoded, src_raw, src_encoded);
+    //fprintf(stderr, "DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
+    //fprintf(stderr, "SRC: %02X %02X %02X %02X %02X %02X\n", lsf.src[0], lsf.src[1], lsf.src[2], lsf.src[3], lsf.src[4], lsf.src[5]);
     type=((uint16_t)0b01<<1)|((uint16_t)can<<7); //packet mode, content: data
     lsf.type[0]=(uint16_t)type>>8;
     lsf.type[1]=(uint16_t)type&0xFF;
     memset(&lsf.meta, 0, 112/8);
+
+    //calculate LSF CRC
+    uint16_t lsf_crc=LSF_CRC(&lsf);
+    lsf.crc[0]=lsf_crc>>8;
+    lsf.crc[1]=lsf_crc&0xFF;
 
     //encode LSF data
     conv_Encode_LSF(enc_bits, &lsf);
@@ -419,9 +448,100 @@ int main(int argc, char* argv[])
     //fill packet with LSF
     fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
-    /*
-    //encode the packet frame
-    conv_Encode_Frame();
+    //read Packet Data from stdin
+    memset(full_packet_data, 0, 32*25);
+    memset(pkt_chunk, 0, 25+1);
+    pkt_cnt=0;
+    uint16_t tmp=num_bytes;
+    while(num_bytes)
+    {
+        //send packet frame syncword
+        fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+
+        if(num_bytes>=25)
+        {
+            while(fread(pkt_chunk, 1, 25, stdin)<1);
+            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
+            pkt_chunk[25]=pkt_cnt<<3;
+            fprintf(stderr, "FN:%02d (full frame)\n", pkt_cnt);
+
+            //encode the packet frame
+            conv_Encode_Frame(enc_bits, pkt_chunk);
+
+            //reorder bits
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+                rf_bits[i]=enc_bits[intrl_seq[i]];
+
+            //randomize
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+            {
+                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
+                {
+                    if(rf_bits[i])
+                        rf_bits[i]=0;
+                    else
+                        rf_bits[i]=1;
+                }
+            }
+
+            //fill packet with frame data
+            fill_data(full_packet, &pkt_sym_cnt, rf_bits);
+
+            num_bytes-=25;
+        }
+        else
+        {
+            while(fread(pkt_chunk, 1, num_bytes, stdin)<1);
+            memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
+            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
+            pkt_chunk[25]=pkt_cnt<<3;
+            fprintf(stderr, "FN:%02d (partial frame)\n", pkt_cnt);
+
+            //encode the packet frame
+            conv_Encode_Frame(enc_bits, pkt_chunk);
+
+            //reorder bits
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+                rf_bits[i]=enc_bits[intrl_seq[i]];
+
+            //randomize
+            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+            {
+                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
+                {
+                    if(rf_bits[i])
+                        rf_bits[i]=0;
+                    else
+                        rf_bits[i]=1;
+                }
+            }
+
+            //fill packet with frame data
+            fill_data(full_packet, &pkt_sym_cnt, rf_bits);
+
+            num_bytes=0;
+        }
+
+        pkt_cnt++;
+    }
+
+    num_bytes=tmp; //bring back the num_bytes value
+
+    //fprintf(stderr, "DATA: %s\n", full_packet_data);
+
+    //send packet frame syncword - last frame with CRC and EOT bit
+    fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+
+    uint16_t crc=CRC_M17(full_packet_data, num_bytes);
+    pkt_chunk[0]=crc>>8; //2-byte CRC
+    pkt_chunk[1]=crc&0xFF;
+    memset(&pkt_chunk[2], 0, 23);
+    pkt_chunk[25]=((num_bytes%25)<<3)|(1<<2); //counter set to the amount of bytes in the previous frame, EOT bit set to 1
+
+    //encode the last packet frame
+    fprintf(stderr, "FN:-- (ending frame)\n", pkt_cnt);
+    fprintf(stderr, "CRC: %04X\n", crc);
+    conv_Encode_Frame(enc_bits, pkt_chunk);
 
     //reorder bits
     for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -439,55 +559,8 @@ int main(int argc, char* argv[])
         }
     }
 
-	//send packet frame data
-	send_data(rf_bits);
-    */
-
-    //read Packet Data from stdin
-    memset(full_packet_data, 0, 32*25);
-    memset(pkt_chunk, 0, 25+1);
-    pkt_cnt=0;
-    uint16_t tmp=num_bytes;
-    while(num_bytes)
-    {
-        //send packet frame syncword
-        fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
-
-        if(num_bytes>=25)
-        {
-            while(fread(pkt_chunk, 1, 25, stdin)<1);
-            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
-            pkt_chunk[25]=pkt_cnt<<2;
-            printf("FN:%02d (full frame)\n", pkt_cnt);
-            num_bytes-=25;
-        }
-        else
-        {
-            while(fread(pkt_chunk, 1, num_bytes, stdin)<1);
-            memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
-            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
-            pkt_chunk[25]=pkt_cnt<<2;
-            printf("FN:%02d (partial frame)\n", pkt_cnt);
-            num_bytes=0;
-        }
-
-        pkt_cnt++;
-    }
-
-    num_bytes=tmp; //bring back the num_bytes value
-
-    printf("DATA: %s\n", full_packet_data);
-
-    //send packet frame syncword - last frame with CRC and EOT bit
-    fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
-
-    uint16_t crc=CRC_M17(full_packet_data, num_bytes);
-    pkt_chunk[0]=crc>>8; //2-byte CRC
-    pkt_chunk[1]=crc&0xFF;
-    memset(&pkt_chunk[2], 0, 23);
-    pkt_chunk[25]=(1<<7)|((num_bytes%25)<<2); //EOT bit set to 1, counter set to the amount of bytes in the previous frame
-
-    printf("CRC: %04X\n", crc);
+    //fill packet with frame data
+    fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
     //send EOT
     for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
@@ -495,11 +568,57 @@ int main(int argc, char* argv[])
 
     //dump baseband to a file
     fp=fopen(fname, "wb");
-    for(uint16_t i=0; i<pkt_sym_cnt; i++)
+
+    //debug mode - symbols multiplied by 7168 scaling factor
+    /*for(uint16_t i=0; i<pkt_sym_cnt; i++)
     {
         int16_t val=roundf(full_packet[i]*RRC_DEV);
         fwrite(&val, 2, 1, fp);
+    }*/
+
+    //standard mode - filtered baseband
+    if(out_type==0)
+    {
+        float mem[FLT_LEN];
+        float mac=0.0f;
+        uint8_t int_cnt=0;
+        memset((uint8_t*)mem, 0, FLT_LEN*sizeof(float));
+        for(uint16_t i=0; i<pkt_sym_cnt; i++)
+        {
+            //push new sample
+            mem[0]=full_packet[i]*RRC_DEV;
+
+            for(uint8_t j=0; j<10; j++)
+            {
+                mac=0.0f;
+
+                //calc the sum of products
+                for(uint16_t k=0; k<FLT_LEN; k++)
+                    mac+=mem[k]*taps[k];
+
+                //shift the delay line right by 1
+                for(int16_t k=FLT_LEN-1; k>0; k--)
+                {
+                    mem[k]=mem[k-1];
+                }
+                mem[0]=0.0f;
+
+                //write to file
+                int16_t tmp=mac;
+                fwrite((uint8_t*)&tmp, 2, 1, fp);
+            }
+        }
     }
+    //standard mode - int16 symbol stream
+    else if(out_type==1)
+    {
+        for(uint16_t i=0; i<pkt_sym_cnt; i++)
+        {
+            int16_t val=full_packet[i];
+            fwrite(&val, 2, 1, fp);
+        }
+    }
+
     fclose(fp);
 
 	return 0;
