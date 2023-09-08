@@ -9,7 +9,7 @@ Written in C, it has all the components described by the protocol's specificatio
 - bit interleaver and randomizer,
 - cyclic redundancy check (CRC) validation,
 - callsign decoder
-- 
+
 It also supports packet mode (TX only for now).
 
 There's no support for **any** encryption yet.
