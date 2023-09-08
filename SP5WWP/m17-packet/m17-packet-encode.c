@@ -116,7 +116,7 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in)
 
 		//fprintf(stderr, "%d%d", G1, G2);
 
-		if(P_2[p])
+		if(P_3[p])
 		{
 			out[pb]=G1;
 			pb++;
@@ -125,7 +125,7 @@ void conv_Encode_Frame(uint8_t* out, uint8_t* in)
 		p++;
 		p%=pp_len;
 
-		if(P_2[p])
+		if(P_3[p])
 		{
 			out[pb]=G2;
 			pb++;
