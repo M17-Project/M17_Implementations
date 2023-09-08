@@ -536,7 +536,7 @@ int main(int argc, char* argv[])
     pkt_chunk[0]=crc>>8; //2-byte CRC
     pkt_chunk[1]=crc&0xFF;
     memset(&pkt_chunk[2], 0, 23);
-    pkt_chunk[25]=((num_bytes%25)<<3)|(1<<2); //counter set to the amount of bytes in the previous frame, EOT bit set to 1
+    pkt_chunk[25]=(((num_bytes%25==0)?25:num_bytes%25)<<3)|(1<<2); //counter set to the amount of bytes in the previous frame, EOT bit set to 1
 
     //encode the last packet frame
     fprintf(stderr, "FN:-- (ending frame)\n", pkt_cnt);
