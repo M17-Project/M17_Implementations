@@ -23,6 +23,9 @@ filtered with an appropriate filter before transmission, see the specification d
 - `m17-decoder-sym` decodes a stream of floats at `stdin`, one sample per symbol. After a valid
 syncword is detected, decoding process starts. The program expects a stream of synchronized symbols
 at the input. See the `/grc/symbol_recovery.grc` file for details.
+- `m17-packet-encode` is a handy tool for generating baseband (or a symbol stream, if needed) for
+M17 packets. The program expects a limited stream of raw data at the stdin. The number of bytes is set
+with the `-n` parameter, range 1 to 798.
 
 ### Testing
 Both the encoder and the decoder can be tested simultaneously. The test setup should look as follows:<br>
