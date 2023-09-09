@@ -594,7 +594,7 @@ int main(int argc, char* argv[])
 
                 //calc the sum of products
                 for(uint16_t k=0; k<FLT_LEN; k++)
-                    mac+=mem[k]*taps[k];
+                    mac+=mem[k]*taps[k]*sqrtf(10.0); //temporary fix for the interpolation gain error
 
                 //shift the delay line right by 1
                 for(int16_t k=FLT_LEN-1; k>0; k--)
