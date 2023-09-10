@@ -42,8 +42,6 @@ uint8_t out_type=0;                                         //output file type -
 //type - 1 - preamble before BERT transmission
 void fill_Preamble(float* out, const uint8_t type)
 {
-    float symb;
-
     if(type) //pre-BERT
     {
         for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
