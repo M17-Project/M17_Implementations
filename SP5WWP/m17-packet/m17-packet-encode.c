@@ -368,7 +368,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Not enough params. Usage:\n");
         fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
         fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for boradcast,\n");
-        fprintf(stderr, "-C - Channel Access Number (0..15, default - 10),\n");
+        fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
         fprintf(stderr, "-n - number of bytes (1 to 798),\n");
         fprintf(stderr, "-o - output file path/name,\n");
         fprintf(stderr, "Output formats:\n");
