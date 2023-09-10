@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <unistd.h>
+#include <stdlib.h>
 #include <math.h>
 
 #include "../inc/m17.h"
@@ -22,7 +22,7 @@ uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpac
 uint8_t dst_raw[10]={'A', 'L', 'L', '\0'};                  //raw, unencoded destination address
 uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
-uint16_t num_bytes=0;                                       //number of bytes in packet, max 800-2=798
+uint16_t num_bytes=0;                                       //number of bytes in packet, max 800
 //uint8_t data[25];                                           //raw payload, packed bits
 uint8_t fname[128]={'\0'};                                  //output file
 
@@ -248,7 +248,7 @@ uint16_t LSF_CRC(struct LSF *in)
 uint8_t encode_callsign(uint64_t* out, const uint8_t* inp)
 {
     //assert inp length
-    if(strlen(inp)>9)
+    if(strlen((const char*)inp)>9)
     {
         return -1;
     }
@@ -257,13 +257,13 @@ uint8_t encode_callsign(uint64_t* out, const uint8_t* inp)
 
     uint64_t tmp=0;
 
-    if(strcmp(inp, "ALL")==0)
+    if(strcmp((const char*)inp, "ALL")==0)
     {
         *out=0xFFFFFFFFFFFF;
         return 0;
     }
 
-    for(int8_t i=strlen(inp)-1; i>=0; i--)
+    for(int8_t i=strlen((const char*)inp)-1; i>=0; i--)
     {
         for(uint8_t j=0; j<40; j++)
         {
@@ -313,8 +313,8 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='C') //-C - CAN
                 {
-                    if(atoi(argv[i+1])<=15)
-                        can=atoi(&argv[i+1]);
+                    if(atoi(&argv[i+1][0])<=15)
+                        can=atoi(&argv[i+1][0]);
                     else
                     {
                         fprintf(stderr, "CAN out of range: 0..15.\n");
@@ -323,17 +323,17 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='n') //-n - number of bytes in packet
                 {
-                    if(atoi(argv[i+1])>0 && atoi(argv[i+1])<=798)
-                        num_bytes=atoi(argv[i+1]);
+                    if(atoi(argv[i+1])>0 && atoi(argv[i+1])<=800)
+                        num_bytes=atoi(&argv[i+1][0]);
                     else
                     {
-                        fprintf(stderr, "Number of bytes 0 or exceeding the maximum of 798. Exiting...\n");
+                        fprintf(stderr, "Number of bytes 0 or exceeding the maximum of 800. Exiting...\n");
                         return -1;
                     }
                 }
                 else if(argv[i][1]=='o') //-o - output filename
                 {
-                    if(strlen(argv[i+1])>0)
+                    if(strlen(&argv[i+1][0])>0)
                         memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
                     else
                     {
@@ -367,7 +367,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
         fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for boradcast,\n");
         fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
-        fprintf(stderr, "-n - number of bytes (1 to 798),\n");
+        fprintf(stderr, "-n - number of bytes (1 to 800),\n");
         fprintf(stderr, "-o - output file path/name,\n");
         fprintf(stderr, "Output formats:\n");
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
@@ -382,7 +382,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Number of bytes not set. Exiting...\n");
         return -1;
     }
-    else if(strlen(fname)==0)
+    else if(strlen((const char*)fname)==0)
     {
         fprintf(stderr, "Filename not specified. Exiting...\n");
         return -1;
@@ -537,7 +537,7 @@ int main(int argc, char* argv[])
     pkt_chunk[25]=(((num_bytes%25==0)?25:num_bytes%25)<<3)|(1<<2); //counter set to the amount of bytes in the previous frame, EOT bit set to 1
 
     //encode the last packet frame
-    fprintf(stderr, "FN:-- (ending frame)\n", pkt_cnt);
+    fprintf(stderr, "FN:-- (ending frame)\n");
     fprintf(stderr, "CRC: %04X\n", crc);
     conv_Encode_Frame(enc_bits, pkt_chunk);
 
@@ -565,7 +565,7 @@ int main(int argc, char* argv[])
         fill_Syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
 
     //dump baseband to a file
-    fp=fopen(fname, "wb");
+    fp=fopen((const char*)fname, "wb");
 
     //debug mode - symbols multiplied by 7168 scaling factor
     /*for(uint16_t i=0; i<pkt_sym_cnt; i++)
@@ -579,7 +579,6 @@ int main(int argc, char* argv[])
     {
         float mem[FLT_LEN];
         float mac=0.0f;
-        uint8_t int_cnt=0;
         memset((uint8_t*)mem, 0, FLT_LEN*sizeof(float));
         for(uint16_t i=0; i<pkt_sym_cnt; i++)
         {
