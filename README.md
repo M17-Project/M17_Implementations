@@ -68,7 +68,7 @@ Packet encoding is available with `m17-packet-encoder`. Its input parameters are
 -S - source callsign (uppercase alphanumeric string) max. 9 characters
 -D - destination callsign (uppercase alphanumeric string) or ALL for broadcast
 -C - Channel Access Number (0..15, default - 0)
--n - number of bytes (1 to 800)
+-n - number of bytes (1 to 798)
 -o - output file path/name
 -x - binary output (M17 baseband as a packed bitstream)
 -r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol)
