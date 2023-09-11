@@ -66,12 +66,12 @@ Terminal 2 should show similar results, with the Frame Number advancing each fra
 Packet encoding is available with `m17-packet-encoder`. Its input parameters are shown below.
 ```
 -S - source callsign (uppercase alphanumeric string) max. 9 characters
--D - destination callsign (uppercase alphanumeric string) or ALL for boradcast
+-D - destination callsign (uppercase alphanumeric string) or ALL for broadcast
 -C - Channel Access Number (0..15, default - 0)
 -n - number of bytes (1 to 800)
 -o - output file path/name
 -x - binary output (M17 baseband as a packed bitstream)
--r - raw audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol)
+-r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol)
 -s - signed 16-bit LE symbols output
 ```
 
