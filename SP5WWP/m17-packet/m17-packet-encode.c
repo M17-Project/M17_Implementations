@@ -403,12 +403,12 @@ int main(int argc, char* argv[])
         lsf.dst[5-i]=(dst_encoded>>(i*8))&0xFF;
         lsf.src[5-i]=(src_encoded>>(i*8))&0xFF;
     }
-	#ifdef __ARM_ARCH_6__
+    #ifdef __ARM_ARCH_6__
     fprintf(stderr, "DST: %s\t%012llX\nSRC: %s\t%012llX\n", dst_raw, dst_encoded, src_raw, src_encoded);
     #else
-	fprintf(stderr, "DST: %s\t%012lX\nSRC: %s\t%012lX\n", dst_raw, dst_encoded, src_raw, src_encoded);
-	#endif
-	//fprintf(stderr, "DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
+    fprintf(stderr, "DST: %s\t%012lX\nSRC: %s\t%012lX\n", dst_raw, dst_encoded, src_raw, src_encoded);
+    #endif
+    //fprintf(stderr, "DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
     //fprintf(stderr, "SRC: %02X %02X %02X %02X %02X %02X\n", lsf.src[0], lsf.src[1], lsf.src[2], lsf.src[3], lsf.src[4], lsf.src[5]);
     type=((uint16_t)0b01<<1)|((uint16_t)can<<7); //packet mode, content: data
     lsf.type[0]=(uint16_t)type>>8;
