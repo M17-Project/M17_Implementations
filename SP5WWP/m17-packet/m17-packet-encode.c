@@ -426,6 +426,7 @@ int main(int argc, char* argv[])
     uint16_t lsf_crc=LSF_CRC(&lsf);
     lsf.crc[0]=lsf_crc>>8;
     lsf.crc[1]=lsf_crc&0xFF;
+    fprintf(stderr, "LSF CRC:\t%04hX\n", lsf_crc);
 
     //encode LSF data
     conv_Encode_LSF(enc_bits, &lsf);
@@ -468,7 +469,7 @@ int main(int argc, char* argv[])
         if(num_bytes>=25)
         {
             memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], 25);
-            pkt_chunk[25]=pkt_cnt<<3;
+            pkt_chunk[25]=pkt_cnt<<2;
             fprintf(stderr, "FN:%02d (full frame)\n", pkt_cnt);
 
             //encode the packet frame
@@ -499,7 +500,7 @@ int main(int argc, char* argv[])
         {
             memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], num_bytes);
             memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
-            pkt_chunk[25]=(((num_bytes%25==0)?25:num_bytes%25)<<3)|(1<<2); //set counter to the amount of bytes in this (the last) frame, EOT bit set to 1
+            pkt_chunk[25]=(1<<7)|(((num_bytes%25==0)?25:num_bytes%25)<<2); //EOT bit set to 1, set counter to the amount of bytes in this (the last) frame
 
             fprintf(stderr, "FN:-- (ending frame)\n");
 
@@ -529,9 +530,9 @@ int main(int argc, char* argv[])
         }
 
         //debug dump
-        for(uint8_t i=0; i<26; i++)
-            fprintf(stderr, "%02X", pkt_chunk[i]);
-        fprintf(stderr, "\n");
+        //for(uint8_t i=0; i<26; i++)
+            //fprintf(stderr, "%02X", pkt_chunk[i]);
+        //fprintf(stderr, "\n");
 
         pkt_cnt++;
     }
