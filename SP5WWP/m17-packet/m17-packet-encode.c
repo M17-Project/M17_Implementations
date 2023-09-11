@@ -365,13 +365,13 @@ int main(int argc, char* argv[])
     {
         fprintf(stderr, "Not enough params. Usage:\n");
         fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
-        fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for boradcast,\n");
+        fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for broadcast,\n");
         fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
         fprintf(stderr, "-n - number of bytes (1 to 800),\n");
         fprintf(stderr, "-o - output file path/name,\n");
         fprintf(stderr, "Output formats:\n");
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
-        fprintf(stderr, "-r - raw audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
+        fprintf(stderr, "-r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
         fprintf(stderr, "-s - signed 16-bit LE symbols output\n");
         return -1;
     }
