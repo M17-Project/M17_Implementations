@@ -22,8 +22,7 @@ uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpac
 uint8_t dst_raw[10]={'A', 'L', 'L', '\0'};                  //raw, unencoded destination address
 uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
-uint16_t num_bytes=0;                                       //number of bytes in packet, max 800
-//uint8_t data[25];                                           //raw payload, packed bits
+uint16_t num_bytes=0;                                       //number of bytes in packet, max 800-2=798
 uint8_t fname[128]={'\0'};                                  //output file
 
 FILE* fp;
@@ -33,7 +32,6 @@ uint16_t pkt_sym_cnt=0;                                     //packet symbol coun
 uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
 uint8_t pkt_chunk[25+1];                                    //chunk of Packet Data, up to 25 bytes plus 6 bits of Packet Metadata
 uint8_t full_packet_data[32*25];                            //full packet data, bytes
-
 uint8_t out_type=0;                                         //output file type - 0 - raw int16 filtered samples (.rrc) - default
                                                             //                   1 - int16 symbol stream
                                                             //                   2 - binary stream (TODO)
@@ -323,11 +321,11 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='n') //-n - number of bytes in packet
                 {
-                    if(atoi(argv[i+1])>0 && atoi(argv[i+1])<=800)
+                    if(atoi(argv[i+1])>0 && atoi(argv[i+1])<=(800-2))
                         num_bytes=atoi(&argv[i+1][0]);
                     else
                     {
-                        fprintf(stderr, "Number of bytes 0 or exceeding the maximum of 800. Exiting...\n");
+                        fprintf(stderr, "Number of bytes 0 or exceeding the maximum of 798. Exiting...\n");
                         return -1;
                     }
                 }
@@ -367,7 +365,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
         fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for broadcast,\n");
         fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
-        fprintf(stderr, "-n - number of bytes (1 to 800),\n");
+        fprintf(stderr, "-n - number of bytes (1 to 798),\n");
         fprintf(stderr, "-o - output file path/name,\n");
         fprintf(stderr, "Output formats:\n");
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
@@ -393,6 +391,14 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    //obtain data and append with CRC
+    memset(full_packet_data, 0, 32*25);
+    while(fread(full_packet_data, 1, num_bytes, stdin)<1);
+    uint16_t packet_crc=CRC_M17(full_packet_data, num_bytes);
+    full_packet_data[num_bytes]  =packet_crc>>8;
+    full_packet_data[num_bytes+1]=packet_crc&0xFF;
+    num_bytes+=2; //count 2-byte CRC too
+
     //encode dst, src for the lsf struct
     uint64_t dst_encoded=0, src_encoded=0;
     uint16_t type=0;
@@ -410,6 +416,7 @@ int main(int argc, char* argv[])
     #endif
     //fprintf(stderr, "DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
     //fprintf(stderr, "SRC: %02X %02X %02X %02X %02X %02X\n", lsf.src[0], lsf.src[1], lsf.src[2], lsf.src[3], lsf.src[4], lsf.src[5]);
+    fprintf(stderr, "Data CRC:\t%04hX\n", packet_crc);
     type=((uint16_t)0b01<<1)|((uint16_t)can<<7); //packet mode, content: data
     lsf.type[0]=(uint16_t)type>>8;
     lsf.type[1]=(uint16_t)type&0xFF;
@@ -450,9 +457,7 @@ int main(int argc, char* argv[])
     //fill packet with LSF
     fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
-    //read Packet Data from stdin
-    memset(full_packet_data, 0, 32*25);
-    memset(pkt_chunk, 0, 25+1);
+    //read Packet Data from variable
     pkt_cnt=0;
     uint16_t tmp=num_bytes;
     while(num_bytes)
@@ -462,8 +467,7 @@ int main(int argc, char* argv[])
 
         if(num_bytes>=25)
         {
-            while(fread(pkt_chunk, 1, 25, stdin)<1);
-            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
+            memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], 25);
             pkt_chunk[25]=pkt_cnt<<3;
             fprintf(stderr, "FN:%02d (full frame)\n", pkt_cnt);
 
@@ -493,11 +497,11 @@ int main(int argc, char* argv[])
         }
         else
         {
-            while(fread(pkt_chunk, 1, num_bytes, stdin)<1);
+            memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], num_bytes);
             memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
-            memcpy(&full_packet_data[pkt_cnt*25], pkt_chunk, 25);
-            pkt_chunk[25]=pkt_cnt<<3;
-            fprintf(stderr, "FN:%02d (partial frame)\n", pkt_cnt);
+            pkt_chunk[25]=(((num_bytes%25==0)?25:num_bytes%25)<<3)|(1<<2); //set counter to the amount of bytes in this (the last) frame, EOT bit set to 1
+
+            fprintf(stderr, "FN:-- (ending frame)\n");
 
             //encode the packet frame
             conv_Encode_Frame(enc_bits, pkt_chunk);
@@ -524,45 +528,17 @@ int main(int argc, char* argv[])
             num_bytes=0;
         }
 
+        //debug dump
+        for(uint8_t i=0; i<26; i++)
+            fprintf(stderr, "%02X", pkt_chunk[i]);
+        fprintf(stderr, "\n");
+
         pkt_cnt++;
     }
 
     num_bytes=tmp; //bring back the num_bytes value
 
     //fprintf(stderr, "DATA: %s\n", full_packet_data);
-
-    //send packet frame syncword - last frame with CRC and EOT bit
-    fill_Syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
-
-    uint16_t crc=CRC_M17(full_packet_data, num_bytes);
-    pkt_chunk[0]=crc>>8; //2-byte CRC
-    pkt_chunk[1]=crc&0xFF;
-    memset(&pkt_chunk[2], 0, 23);
-    pkt_chunk[25]=(((num_bytes%25==0)?25:num_bytes%25)<<3)|(1<<2); //counter set to the amount of bytes in the previous frame, EOT bit set to 1
-
-    //encode the last packet frame
-    fprintf(stderr, "FN:-- (ending frame)\n");
-    fprintf(stderr, "CRC: %04X\n", crc);
-    conv_Encode_Frame(enc_bits, pkt_chunk);
-
-    //reorder bits
-    for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-        rf_bits[i]=enc_bits[intrl_seq[i]];
-
-    //randomize
-    for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-    {
-        if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-        {
-            if(rf_bits[i])
-                rf_bits[i]=0;
-            else
-                rf_bits[i]=1;
-        }
-    }
-
-    //fill packet with frame data
-    fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
     //send EOT
     for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
