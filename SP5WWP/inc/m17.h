@@ -12,9 +12,14 @@ extern "C" {
 #define SYM_PER_FRA         192         //symbols per whole 40 ms frame
 #define RRC_DEV             7168.0f     //.rrc file deviation for +1.0 symbol
 
+#define XCORR_THRESH		0.90		//arbitrary threshold between 0 and 1
+#define SW_MEAN				-0.75		//mean(str_sync)=mean(pkt_sync)
+#define SW_STD				8.21583836f	//std(str_sync)*sqrt(length(str_sync)-1)
+
 //syncword patterns (RX) TODO:Compute those at runtime from the consts below
-const int8_t str_sync[8]={-3, -3, -3, -3, +3, +3, -3, +3};
 const int8_t lsf_sync[8]={+3, +3, +3, +3, -3, -3, +3, -3};
+const int8_t str_sync[8]={-3, -3, -3, -3, +3, +3, -3, +3};
+const int8_t pkt_sync[8]={+3, -3, +3, +3, -3, -3, -3, -3};
 
 //symbol levels (RX)
 const float symbs[4]={-3.0, -1.0, +1.0, +3.0};

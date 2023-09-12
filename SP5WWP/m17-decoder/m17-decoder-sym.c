@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "../inc/m17.h"
 #include "golay.h"
@@ -14,7 +14,7 @@
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
-float xcorr;                        //cross correlation for finding syncwords
+float xcorr, meanx, normx;          //cross correlation related variables for finding syncwords
 float pld[SYM_PER_PLD];             //raw frame symbols
 uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
 uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
@@ -69,7 +69,7 @@ void decode_callsign(uint8_t *outp, const uint8_t *inp)
 	{
         if(encoded==0xFFFFFFFFFFFF) //broadcast
         {
-            sprintf(outp, "#BCAST");
+            sprintf((char*)outp, "#BCAST");
         }
         else
         {
@@ -107,22 +107,30 @@ int main(void)
             last[7]=sample;
 
             //calculate cross-correlation
-            xcorr=0;
+            meanx=0.0f;
+            for(uint8_t i=0; i<8; i++)
+                meanx+=last[i];
+            meanx=meanx/8.0f;
+
+            xcorr=0.0f;
+            normx=0.0f;
             for(uint8_t i=0; i<8; i++)
             {
-                xcorr+=last[i]*str_sync[i];
+                xcorr+=(last[i]-meanx)*(str_sync[i]-SW_MEAN);
+                normx+=(last[i]-meanx)*(last[i]-meanx);
             }
+
+            xcorr=xcorr/(sqrtf(normx)*SW_STD);
 
             //printf("%f\n", xcorr);
 
-
-            if(xcorr>62.0) //Frame syncword detected
+            if(xcorr>XCORR_THRESH) //Frame syncword detected
             {
                 syncd=1;
                 pushed=0;
                 fl=0;
             }
-            else if(xcorr<-62) //LSF syncword
+            else if(xcorr<-XCORR_THRESH) //LSF syncword
             {
                 syncd=1;
                 pushed=0;
