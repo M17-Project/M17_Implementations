@@ -267,12 +267,15 @@ int main(void)
 
     while(!finished)
     {
-        lsf = next_lsf;
+        if(lich_cnt == 0)
+        {
+            lsf = next_lsf;
 
-        //calculate LSF CRC
-        uint16_t ccrc=LSF_CRC(&lsf);
-        lsf.crc[0]=ccrc>>8;
-        lsf.crc[1]=ccrc&0xFF;
+            //calculate LSF CRC
+            uint16_t ccrc=LSF_CRC(&lsf);
+            lsf.crc[0]=ccrc>>8;
+            lsf.crc[1]=ccrc&0xFF;
+        }
 
         memcpy(data, next_data, sizeof(data));
 
