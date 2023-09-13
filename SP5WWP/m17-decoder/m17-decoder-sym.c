@@ -94,7 +94,7 @@ int main(void)
     while(1)
     {
         //wait for another symbol
-        while(fread((uint8_t*)&sample, 1, 4, stdin)<1);
+        if(fread((uint8_t*)&sample, 4, 1, stdin)<1) break;
 
         if(!syncd)
         {
