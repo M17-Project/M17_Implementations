@@ -21,7 +21,7 @@ int main(void)
     while(1)
     {
         //wait for another baseband sample
-        while(fread((uint8_t*)&sample, 1, 2, stdin)<1);
+        if(fread((uint8_t*)&sample, 2, 1, stdin)<1) break;
 
         //push the root-nyquist filter's buffer
         for(uint8_t i=0; i<FLT_LEN-1; i++)

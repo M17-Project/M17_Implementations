@@ -16,17 +16,18 @@ struct LSF
 	uint8_t type[2];
 	uint8_t meta[112/8];
 	uint8_t crc[2];
-} lsf;
+} lsf, next_lsf;
 
 uint8_t lich[6];                    //48 bits packed raw, unencoded LICH
 uint8_t lich_encoded[12];           //96 bits packed, encoded LICH
 uint8_t enc_bits[SYM_PER_PLD*2];    //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];     //type-4 bits, unpacked
 
-uint8_t data[16];                   //raw payload, packed bits
+uint8_t data[16], next_data[16];    //raw payload, packed bits
 uint16_t fn=0;                      //16-bit Frame Number (for the stream mode)
 uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
+uint8_t finished=0;
 
 void send_Preamble(const uint8_t type)
 {
@@ -74,6 +75,15 @@ void send_data(uint8_t* in)
 		s=symbol_map[in[2*i]*2+in[2*i+1]];
 		write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
 	}
+}
+
+void send_EoT()
+{
+    float symb=+3.0;
+    for(uint16_t i=0; i<192; i++) //40ms * 4800 = 192
+    {
+        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+    }
 }
 
 //out - unpacked bits
@@ -249,17 +259,32 @@ int main(void)
     //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
     //return 0;
 
-    while(1)
+    if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
+    if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
+    if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+    if(fread(next_data, 16, 1, stdin)<1) finished=1;
+
+    while(!finished)
     {
+        lsf = next_lsf;
+
+        //calculate LSF CRC
+        uint16_t ccrc=LSF_CRC(&lsf);
+        lsf.crc[0]=ccrc>>8;
+        lsf.crc[1]=ccrc&0xFF;
+
+        memcpy(data, next_data, sizeof(data));
+
+        //we could discard the data we already have
+        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+        if(fread(next_data, 16, 1, stdin)<1) finished=1;
+
         if(got_lsf) //stream frames
         {
-            //we could discard the data we already have
-            while(fread(&(lsf.dst), 1, 6, stdin)<1);
-            while(fread(&(lsf.src), 1, 6, stdin)<1);
-            while(fread(&(lsf.type), 1, 2, stdin)<1);
-            while(fread(&(lsf.meta), 1, 14, stdin)<1);
-            while(fread(data, 1, 16, stdin)<1);
-
             //send stream frame syncword
             send_Syncword(SYNC_STR);
 
@@ -349,7 +374,7 @@ int main(void)
             }
 
             //encode the rest of the frame
-            conv_Encode_Frame(&enc_bits[96], data, fn);
+            conv_Encode_Frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
 
             //reorder bits
             for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -394,17 +419,6 @@ int main(void)
         }
         else //LSF
         {
-            while(fread(&(lsf.dst), 1, 6, stdin)<1);
-            while(fread(&(lsf.src), 1, 6, stdin)<1);
-            while(fread(&(lsf.type), 1, 2, stdin)<1);
-            while(fread(&(lsf.meta), 1, 14, stdin)<1);
-            while(fread(data, 1, 16, stdin)<1);
-
-            //calculate LSF CRC
-            uint16_t ccrc=LSF_CRC(&lsf);
-            lsf.crc[0]=ccrc>>8;
-            lsf.crc[1]=ccrc&0xFF;
-
             got_lsf=1;
 
             //encode LSF data
@@ -457,6 +471,9 @@ int main(void)
                 printf("%02X", lsf.crc[i]);
 			printf("\n");*/
 		}
+
+        if (finished)
+            send_EoT();
 	}
 
 	return 0;

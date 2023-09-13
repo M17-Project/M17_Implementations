@@ -393,7 +393,11 @@ int main(int argc, char* argv[])
 
     //obtain data and append with CRC
     memset(full_packet_data, 0, 32*25);
-    while(fread(full_packet_data, 1, num_bytes, stdin)<1);
+    if(fread(full_packet_data, num_bytes, 1, stdin)<1)
+    {
+        fprintf(stderr, "Packet data too short. Exiting...\n");
+        return -1;
+    }
     uint16_t packet_crc=CRC_M17(full_packet_data, num_bytes);
     full_packet_data[num_bytes]  =packet_crc>>8;
     full_packet_data[num_bytes+1]=packet_crc&0xFF;
