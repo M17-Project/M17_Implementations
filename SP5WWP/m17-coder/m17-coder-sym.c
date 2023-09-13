@@ -25,7 +25,7 @@ uint8_t rf_bits[SYM_PER_PLD*2];     //type-4 bits, unpacked
 
 uint8_t data[16];                   //raw payload, packed bits
 uint16_t fn=0;                      //16-bit Frame Number (for the stream mode)
-uint8_t lich_cnt=0;                 //0..5 LICH counter, derived from the Frame Number
+uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 
 void send_Preamble(const uint8_t type)
@@ -263,9 +263,6 @@ int main(void)
             //send stream frame syncword
             send_Syncword(SYNC_STR);
 
-            //derive the LICH_CNT from the Frame Number
-            lich_cnt=fn%6;
-
             //extract LICH from the whole LSF
             switch(lich_cnt)
             {
@@ -384,7 +381,10 @@ int main(void)
             printf("\n");*/
 
             //increment the Frame Number
-            fn++;
+            fn = (fn + 1) % 0x8000;
+
+            //increment the LICH counter
+            lich_cnt = (lich_cnt + 1) % 6;
 
             //debug-only
 			#ifdef FN60_DEBUG
