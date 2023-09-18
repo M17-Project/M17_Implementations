@@ -15,6 +15,7 @@ extern "C" {
 #define XCORR_THRESH		0.90		//arbitrary threshold between 0 and 1
 #define SW_MEAN				-0.75		//mean(str_sync)=mean(pkt_sync)
 #define SW_STD				8.21583836f	//std(str_sync)*sqrt(length(str_sync)-1)
+#define DIST_THRESH         2.0f        //threshold for distance (syncword detection)
 
 //syncword patterns (RX) TODO:Compute those at runtime from the consts below
 const int8_t lsf_sync[8]={+3, +3, +3, +3, -3, -3, +3, -3};
