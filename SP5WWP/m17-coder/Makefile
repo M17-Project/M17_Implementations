@@ -1,4 +1,4 @@
-m17-coder-sym: m17-coder-sym.c golay.c crc.c
+m17-coder-sym: m17-coder-sym.c golay.c golay.h crc.c crc.h ../inc/m17.h
 	gcc -O2 -w m17-coder-sym.c golay.c crc.c -o m17-coder-sym -lm
 
 clean:
