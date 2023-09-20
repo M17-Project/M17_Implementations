@@ -201,7 +201,7 @@ int main(void)
                     }
                     else if(rx_last)
                     {
-                        memcpy(&packet_data[last_fn*25], &frame_data[1], rx_fn);
+                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn);
 
                         //dump data
                         if(packet_data[0]==0x05) //if a text message
