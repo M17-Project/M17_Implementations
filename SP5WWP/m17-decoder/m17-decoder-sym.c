@@ -14,7 +14,7 @@
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
-float xcorr, meanx, normx;          //cross correlation related variables for finding syncwords
+float dist;                         //Euclidean distance for finding syncwords in the symbol stream
 float pld[SYM_PER_PLD];             //raw frame symbols
 uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
 uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
