@@ -91,6 +91,18 @@ void decode_callsign(uint8_t *outp, const uint8_t *inp)
 	outp[i]=0;
 }
 
+float eucl_norm(const float* in1, const int8_t* in2, uint8_t len)
+{
+    float tmp = 0.0f;
+
+    for(uint8_t i=0; i<len; i++)
+    {
+        tmp += powf(in1[i]-(float)in2[i], 2.0f);
+    }
+
+    return sqrt(tmp);
+}
+
 int main(void)
 {
     while(1)
@@ -108,35 +120,28 @@ int main(void)
 
             last[7]=sample;
 
-            //calculate cross-correlation
-            meanx=0.0f;
-            for(uint8_t i=0; i<8; i++)
-                meanx+=last[i];
-            meanx=meanx/8.0f;
+            //calculate euclidean norm
+            dist = eucl_norm(last, str_sync, 8);
 
-            xcorr=0.0f;
-            normx=0.0f;
-            for(uint8_t i=0; i<8; i++)
+            if(dist<DIST_THRESH) //frame syncword detected
             {
-                xcorr+=(last[i]-meanx)*(str_sync[i]-SW_MEAN);
-                normx+=(last[i]-meanx)*(last[i]-meanx);
-            }
-
-            xcorr=xcorr/(sqrtf(normx)*SW_STD);
-
-            //printf("%f\n", xcorr);
-
-            if(xcorr>XCORR_THRESH) //Frame syncword detected
-            {
+                //fprintf(stderr, "str_sync dist: %3.5f\n", dist);
                 syncd=1;
                 pushed=0;
                 fl=0;
             }
-            else if(xcorr<-XCORR_THRESH) //LSF syncword
+            else
             {
-                syncd=1;
-                pushed=0;
-                fl=1;
+                //calculate euclidean norm again, this time against LSF syncword
+                dist = eucl_norm(last, lsf_sync, 8);
+
+                if(dist<DIST_THRESH) //LSF syncword
+                {
+                    //fprintf(stderr, "lsf_sync dist: %3.5f\n", dist);
+                    syncd=1;
+                    pushed=0;
+                    fl=1;
+                }
             }
         }
         else
