@@ -285,7 +285,7 @@ int main(int argc, char* argv[])
     //the user has to provide a minimum of 2 parameters: number of bytes and output filename
     if(argc>=4)
     {
-        for(uint8_t i=1; i<argc-1; i++)
+        for(uint8_t i=1; i<argc; i++)
         {
             if(argv[i][0]=='-')
             {

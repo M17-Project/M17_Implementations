@@ -9,9 +9,6 @@
 #include "viterbi.h"
 #include "crc.h"
 
-#define DECODE_CALLSIGNS
-//#define SHOW_VITERBI_ERRS
-
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
 float dist;                         //Euclidean distance for finding syncwords in the symbol stream
@@ -27,6 +24,11 @@ uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
 int8_t last_fn;                     //last received frame number (-1 when idle)
 uint8_t pushed;                     //counter for pushed symbols
+
+uint8_t skip_payload_crc_check=0;   //skip payload CRC check
+uint8_t callsigns=0;                //decode callsigns?
+uint8_t show_viterbi=0;             //show Viterbi errors?
+uint8_t text_only=0;                //display text only (for text message mode)
 
 //decodes a 6-byte long array to a callsign
 void decode_callsign(uint8_t *outp, const uint8_t *inp)
@@ -75,8 +77,51 @@ float eucl_norm(const float* in1, const int8_t* in2, uint8_t len)
     return sqrt(tmp);
 }
 
-int main(void)
+int main(int argc, char* argv[])
 {
+    //scan command line options - if there are any
+    //TODO: support for strings with spaces, the code below is NOT foolproof!
+    if(argc>1)
+    {
+        for(uint8_t i=1; i<argc; i++)
+        {
+            if(argv[i][0]=='-')
+            {
+                if(argv[i][1]=='c') //-c - decode callsigns
+                {
+                    callsigns=1;
+                }
+                else if(argv[i][1]=='t') //-t - display text oly (in short text message mode)
+                {
+                    text_only=1;
+                }
+                else if(argv[i][1]=='s') //-s - skip payload CRC check
+                {
+                    skip_payload_crc_check=1;
+                }
+                else if(argv[i][1]=='v') //-v - show Viterbi errors
+                {
+                    show_viterbi=1;
+                }
+                else if(argv[i][1]=='h') //-h - help on usage
+                {
+                    fprintf(stderr, "Usage:\n");
+                    fprintf(stderr, "-c - decode callsigns,\n");
+                    fprintf(stderr, "-t - display text payload only,\n");
+                    fprintf(stderr, "-s - skip payload CRC check,\n");
+                    fprintf(stderr, "-v - show detected errors at the Viterbi decoder,\n");
+                    fprintf(stderr, "-h - display this help message and exit\n");
+                    return -1;
+                }
+                else
+                {
+                    fprintf(stderr, "Unknown param detected. Exiting...\n");
+                    return -1; //unknown option
+                }
+            }
+        }
+    }
+
     while(1)
     {
         //wait for another symbol
@@ -182,11 +227,7 @@ int main(void)
                 if(!fl)
                 {
                     //decode
-                    #ifdef SHOW_VITERBI_ERRS
                     uint32_t e=decodePunctured(frame_data, d_soft_bit, P_3, SYM_PER_PLD*2, 8);
-                    #else
-                    decodePunctured(frame_data, d_soft_bit, P_3, SYM_PER_PLD*2, 8);
-                    #endif
 
                     //dump FN
                     uint8_t rx_fn=(frame_data[26]>>2)&0x1F;
@@ -206,97 +247,117 @@ int main(void)
                         //dump data
                         if(packet_data[0]==0x05) //if a text message
                         {
-                            fprintf(stderr, "%s", &packet_data[1]);
+                            if(skip_payload_crc_check)
+                            {
+                                fprintf(stderr, "%s\n", &packet_data[1]);
+                            }
+                            else
+                            {
+                                uint16_t p_len=strlen((const char*)packet_data);
+                                uint16_t p_crc=CRC_M17(packet_data, p_len+1);
+                                //fprintf(stderr, "rx=%02X%02X calc=%04X", packet_data[p_len+1], packet_data[p_len+2], p_crc);
+                                if(p_crc==(uint16_t)packet_data[p_len+1]*256+(uint16_t)packet_data[p_len+2])
+                                {
+                                    fprintf(stderr, "%s\n", &packet_data[1]);
+                                }
+                            }
                         }
                         else
                         {
-                            fprintf(stderr, "PKT: ");
-                            for(uint16_t i=0; i<last_fn*25+rx_fn; i++)
+                            if(!text_only)
                             {
-                                fprintf(stderr, "%02X", packet_data[i]);
+                                fprintf(stderr, "PKT: ");
+                                for(uint16_t i=0; i<last_fn*25+rx_fn; i++)
+                                {
+                                    fprintf(stderr, "%02X", packet_data[i]);
+                                }
+                                fprintf(stderr, "\n");
                             }
                         }
-
-                        fprintf(stderr, "\n");
                     }
 
-                    #ifdef SHOW_VITERBI_ERRS
-                    fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
-                    #else
-                    //fprintf(stderr, "\n");
-                    #endif
-
-                    //send codec2 stream to stdout
-                    //write(STDOUT_FILENO, &frame_data[3], 16);
+                    if(show_viterbi)
+                    {
+                        fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
+                    }
+                    else
+                    {
+                        //fprintf(stderr, "\n");
+                    }
                 }
                 else //if it is LSF
                 {
                     //fprintf(stderr, "LSF\n");
 
                     //decode
-                    #ifdef SHOW_VITERBI_ERRS
                     uint32_t e=decodePunctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
-                    #else
-                    decodePunctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
-                    #endif
 
                     //shift the buffer 1 position left - get rid of the encoded flushing bits
                     for(uint8_t i=0; i<30; i++)
                         lsf[i]=lsf[i+1];
 
-                    //dump data
-                    #ifdef DECODE_CALLSIGNS
-                    uint8_t d_dst[12], d_src[12]; //decoded strings
+                    if(!text_only)
+                    {
+                        //dump data
+                        if(callsigns)
+                        {
+                            uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                    decode_callsign(d_dst, &lsf[0]);
-                    decode_callsign(d_src, &lsf[6]);
+                            decode_callsign(d_dst, &lsf[0]);
+                            decode_callsign(d_src, &lsf[6]);
 
-                    //DST
-                    fprintf(stderr, "DST: %-9s ", d_dst);
+                            //DST
+                            fprintf(stderr, "DST: %-9s ", d_dst);
 
-                    //SRC
-                    fprintf(stderr, "SRC: %-9s ", d_src);
-                    #else
-                    //DST
-                    fprintf(stderr, "DST: ");
-                    for(uint8_t i=0; i<6; i++)
-                        fprintf(stderr, "%02X", lsf[i]);
-                    fprintf(stderr, " ");
+                            //SRC
+                            fprintf(stderr, "SRC: %-9s ", d_src);
+                        }
+                        else
+                        {
+                            //DST
+                            fprintf(stderr, "DST: ");
+                            for(uint8_t i=0; i<6; i++)
+                                fprintf(stderr, "%02X", lsf[i]);
+                            fprintf(stderr, " ");
 
-                    //SRC
-                    fprintf(stderr, "SRC: ");
-                    for(uint8_t i=0; i<6; i++)
-                        fprintf(stderr, "%02X", lsf[6+i]);
-                    fprintf(stderr, " ");
-                    #endif
+                            //SRC
+                            fprintf(stderr, "SRC: ");
+                            for(uint8_t i=0; i<6; i++)
+                                fprintf(stderr, "%02X", lsf[6+i]);
+                            fprintf(stderr, " ");
+                        }
 
-                    //TYPE
-                    fprintf(stderr, "TYPE: ");
-                    for(uint8_t i=0; i<2; i++)
-                        fprintf(stderr, "%02X", lsf[12+i]);
-                    fprintf(stderr, " ");
+                        //TYPE
+                        fprintf(stderr, "TYPE: ");
+                        for(uint8_t i=0; i<2; i++)
+                            fprintf(stderr, "%02X", lsf[12+i]);
+                        fprintf(stderr, " ");
 
-                    //META
-                    fprintf(stderr, "META: ");
-                    for(uint8_t i=0; i<14; i++)
-                        fprintf(stderr, "%02X", lsf[14+i]);
-                    fprintf(stderr, " ");
+                        //META
+                        fprintf(stderr, "META: ");
+                        for(uint8_t i=0; i<14; i++)
+                            fprintf(stderr, "%02X", lsf[14+i]);
+                        fprintf(stderr, " ");
 
-                    //CRC
-                    //fprintf(stderr, "CRC: ");
-                    //for(uint8_t i=0; i<2; i++)
-                        //fprintf(stderr, "%02X", lsf[28+i]);
-                    if(CRC_M17(lsf, 30))
-                        fprintf(stderr, "LSF_CRC_ERR");
-                    else
-                        fprintf(stderr, "LSF_CRC_OK ");
+                        //CRC
+                        //fprintf(stderr, "CRC: ");
+                        //for(uint8_t i=0; i<2; i++)
+                            //fprintf(stderr, "%02X", lsf[28+i]);
+                        if(CRC_M17(lsf, 30))
+                            fprintf(stderr, "LSF_CRC_ERR");
+                        else
+                            fprintf(stderr, "LSF_CRC_OK ");
 
-                    //Viterbi decoder errors
-                    #ifdef SHOW_VITERBI_ERRS
-                    fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
-                    #else
-                    fprintf(stderr, "\n");
-                    #endif
+                        //Viterbi decoder errors
+                        if(show_viterbi)
+                        {
+                            fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
+                        }
+                        else
+                        {
+                            fprintf(stderr, "\n");
+                        }
+                    }
                 }
 
                 //job done
