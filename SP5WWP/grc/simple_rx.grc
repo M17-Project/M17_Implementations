@@ -386,7 +386,7 @@ blocks:
     debug_data: 'True'
     maxoutbuf: '0'
     minoutbuf: '0'
-    threshold: '0.98'
+    threshold: '2.0'
   states:
     bus_sink: false
     bus_source: false
