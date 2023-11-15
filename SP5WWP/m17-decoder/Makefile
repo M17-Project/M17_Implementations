@@ -2,4 +2,4 @@ m17-decoder-sym: m17-decoder-sym.c golay.c golay.h viterbi.c viterbi.h crc.c crc
 	gcc -Wall -O2 m17-decoder-sym.c golay.c viterbi.c crc.c -o m17-decoder-sym -lm
 
 clean:
-	rm m17-decoder-sym
+	rm -f m17-decoder-sym
