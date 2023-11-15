@@ -292,7 +292,7 @@ int main(int argc, char* argv[])
                 if(argv[i][1]=='D') //-D - destination
                 {
                     if(strlen(argv[i+1])<=9)
-                        memcpy(dst_raw, &argv[i+1][0], strlen(&argv[i+1][0]));
+                        strcpy((char*)dst_raw, argv[i+1]);
                     else
                     {
                         fprintf(stderr, "Too long destination callsign.\n");
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
                 else if(argv[i][1]=='S') //-S - source
                 {
                     if(strlen(argv[i+1])<=9)
-                        memcpy(src_raw, &argv[i+1][0], strlen(&argv[i+1][0]));
+                        strcpy((char*)src_raw, argv[i+1]);
                     else
                     {
                         fprintf(stderr, "Too long source callsign.\n");
