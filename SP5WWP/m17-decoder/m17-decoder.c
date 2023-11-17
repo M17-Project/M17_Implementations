@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdint.h>
 
 #include "../inc/m17.h"
@@ -62,9 +61,7 @@ int main(void)
         //detect peak
         if(xc_buff[XC_LEN-1]>0.4*INT16_MAX)
         {
-            uint8_t msg[64];
-            uint8_t len=sprintf(msg, "SYNC\n");
-            write(STDERR_FILENO, msg, len);
+            fprintf(stderr, "SYNC\n");
         }
     }
 

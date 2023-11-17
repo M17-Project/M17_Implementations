@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdint.h>
-#include <unistd.h>
 
 #include "../inc/m17.h"
 #include "golay.h"
@@ -38,9 +37,9 @@ void send_Preamble(const uint8_t type)
         for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
         {
             symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
             symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
         }
     }
     else //pre-LSF
@@ -48,9 +47,9 @@ void send_Preamble(const uint8_t type)
         for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
         {
             symb=+3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
             symb=-3.0;
-            write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
         }
     }
 }
@@ -62,7 +61,7 @@ void send_Syncword(const uint16_t sword)
     for(uint8_t i=0; i<16; i+=2)
     {
         symb=symbol_map[(sword>>(14-i))&3];
-        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
     }
 }
 
@@ -73,7 +72,7 @@ void send_data(uint8_t* in)
 	for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
 	{
 		s=symbol_map[in[2*i]*2+in[2*i+1]];
-		write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));
+		fwrite((uint8_t*)&s, sizeof(float), 1, stdout);
 	}
 }
 
@@ -82,7 +81,7 @@ void send_EoT()
     float symb=+3.0;
     for(uint16_t i=0; i<192; i++) //40ms * 4800 = 192
     {
-        write(STDOUT_FILENO, (uint8_t*)&symb,  sizeof(float));
+        fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
     }
 }
 
@@ -398,7 +397,7 @@ int main(void)
             //send dummy symbols (debug)
             /*float s=0.0;
             for(uint8_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
-                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));*/
+                fwrite((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
 			//send frame data
 			send_data(rf_bits);
@@ -455,7 +454,7 @@ int main(void)
             //send dummy symbols (debug)
             /*float s=0.0;
             for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
-                write(STDOUT_FILENO, (uint8_t*)&s, sizeof(float));*/
+                write((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
             /*printf("DST: ");
             for(uint8_t i=0; i<6; i++)

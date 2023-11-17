@@ -231,7 +231,7 @@ int main(void)
                     #endif
 
                     //send codec2 stream to stdout
-                    //write(STDOUT_FILENO, &frame_data[3], 16);
+                    //fwrite(&frame_data[3], 16, 1, stdout);
 
                     //extract LICH
                     for(uint16_t i=0; i<96; i++)

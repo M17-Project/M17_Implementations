@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
-#include <unistd.h>
 #include "viterbi.h"
 
 #define K			5               //constraint length
@@ -27,7 +26,7 @@ uint16_t history[244];
 uint32_t decode(uint8_t* out, const uint16_t* in, uint16_t len)
 {
     if(len > 244*2)
-		fprintf((FILE*)STDERR_FILENO, "Input size exceeds max history\n");
+		fprintf(stderr, "Input size exceeds max history\n");
 
     reset();
 
@@ -57,7 +56,7 @@ uint32_t decode(uint8_t* out, const uint16_t* in, uint16_t len)
 uint32_t decodePunctured(uint8_t* out, const uint16_t* in, const uint8_t* punct, const uint16_t in_len, const uint16_t p_len)
 {
     if(in_len > 244*2)
-		fprintf((FILE*)STDERR_FILENO, "Input size exceeds max history\n");
+		fprintf(stderr, "Input size exceeds max history\n");
 
 	uint16_t umsg[244*2];           //unpunctured message
 	uint8_t p=0;		            //puncturer matrix entry
