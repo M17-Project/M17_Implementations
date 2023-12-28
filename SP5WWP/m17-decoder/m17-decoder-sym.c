@@ -2,12 +2,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-#include <math.h>
 
-#include "../inc/m17.h"
-#include "golay.h"
-#include "viterbi.h"
-#include "crc.h"
+#include "../lib/m17lib.h"
 
 #define DECODE_CALLSIGNS
 #define SHOW_VITERBI_ERRS
@@ -32,76 +28,6 @@ uint8_t frame_data[19];             //decoded frame data, 144 bits (16+128), plu
 uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
 uint8_t pushed;                     //counter for pushed symbols
-
-//soft decodes LICH into a 6-byte array
-//input - soft bits
-//output - an array of packed bits
-void decode_LICH(uint8_t* outp, const uint16_t* inp)
-{
-    uint16_t tmp;
-
-    memset(outp, 0, 5);
-
-    tmp=golay24_sdecode(&inp[0]);
-    outp[0]=(tmp>>4)&0xFF;
-    outp[1]|=(tmp&0xF)<<4;
-    tmp=golay24_sdecode(&inp[1*24]);
-    outp[1]|=(tmp>>8)&0xF;
-    outp[2]=tmp&0xFF;
-    tmp=golay24_sdecode(&inp[2*24]);
-    outp[3]=(tmp>>4)&0xFF;
-    outp[4]|=(tmp&0xF)<<4;
-    tmp=golay24_sdecode(&inp[3*24]);
-    outp[4]|=(tmp>>8)&0xF;
-    outp[5]=tmp&0xFF;
-}
-
-//decodes a 6-byte long array to a callsign
-void decode_callsign(uint8_t *outp, const uint8_t *inp)
-{
-	uint64_t encoded=0;
-
-	//repack the data to a uint64_t
-	for(uint8_t i=0; i<6; i++)
-		encoded|=(uint64_t)inp[5-i]<<(8*i);
-
-	//check if the value is reserved (not a callsign)
-	if(encoded>=262144000000000ULL)
-	{
-        if(encoded==0xFFFFFFFFFFFF) //broadcast
-        {
-            sprintf((char*)outp, "#BCAST");
-        }
-        else
-        {
-            outp[0]=0;
-        }
-
-        return;
-	}
-
-	//decode the callsign
-	uint8_t i=0;
-	while(encoded>0)
-	{
-		outp[i]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/."[encoded%40];
-		encoded/=40;
-		i++;
-	}
-	outp[i]=0;
-}
-
-float eucl_norm(const float* in1, const int8_t* in2, uint8_t len)
-{
-    float tmp = 0.0f;
-
-    for(uint8_t i=0; i<len; i++)
-    {
-        tmp += powf(in1[i]-(float)in2[i], 2.0f);
-    }
-
-    return sqrt(tmp);
-}
 
 int main(void)
 {
@@ -214,7 +140,7 @@ int main(void)
                     }
 
                     //decode
-                    uint32_t e=decodePunctured(frame_data, enc_data, P_2, 272, 12);
+                    uint32_t e=viterbi_decode_punctured(frame_data, enc_data, P_2, 272, 12);
 
                     uint16_t fn = (frame_data[1] << 8) | frame_data[2];
 
@@ -256,8 +182,8 @@ int main(void)
                         #ifdef DECODE_CALLSIGNS
                         uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                        decode_callsign(d_dst, &lsf[0]);
-                        decode_callsign(d_src, &lsf[6]);
+                        decode_callsign_bytes(d_dst, &lsf[0]);
+                        decode_callsign_bytes(d_src, &lsf[6]);
 
                         //DST
                         printf("DST: %-9s ", d_dst);
@@ -308,7 +234,7 @@ int main(void)
                     printf("LSF\n");
 
                     //decode
-                    uint32_t e=decodePunctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
+                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
 
                     //shift the buffer 1 position left - get rid of the encoded flushing bits
                     for(uint8_t i=0; i<30; i++)
@@ -318,8 +244,8 @@ int main(void)
                     #ifdef DECODE_CALLSIGNS
                     uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                    decode_callsign(d_dst, &lsf[0]);
-                    decode_callsign(d_src, &lsf[6]);
+                    decode_callsign_bytes(d_dst, &lsf[0]);
+                    decode_callsign_bytes(d_src, &lsf[6]);
 
                     //DST
                     printf("DST: %-9s ", d_dst);
