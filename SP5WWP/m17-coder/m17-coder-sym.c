@@ -1,15 +1,16 @@
 #include <stdio.h>
-#include <string.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
-//#include "../lib/m17lib.h"
-//#include "../lib/m17call.h"
+#include "../lib/m17lib.h"
+#include "../lib/m17call.h"
 #include "../lib/m17consts.h"
-//#include "../lib/m17convol.h"
-//#include "../lib/m17crc.h"
-//#include "../lib/m17golay.h"
-//#include "../lib/m17math.h"
-//#include "../lib/m17viterbi.h"
+#include "../lib/m17convol.h"
+#include "../lib/m17crc.h"
+#include "../lib/m17golay.h"
+#include "../lib/m17math.h"
+#include "../lib/m17viterbi.h"
 
 //#define FN60_DEBUG
 

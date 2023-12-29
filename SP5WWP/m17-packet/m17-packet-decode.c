@@ -4,6 +4,13 @@
 #include <string.h>
 
 #include "../lib/m17lib.h"
+#include "../lib/m17call.h"
+#include "../lib/m17consts.h"
+#include "../lib/m17convol.h"
+#include "../lib/m17crc.h"
+#include "../lib/m17golay.h"
+#include "../lib/m17math.h"
+#include "../lib/m17viterbi.h"
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
