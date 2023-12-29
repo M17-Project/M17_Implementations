@@ -1,26 +1,23 @@
 //--------------------------------------------------------------------
-// M17 C library - m17call.h
+// M17 C library - math/golay.h
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
-#ifndef M17_CALL_LIB
-#define M17_CALL_LIB
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include <stdint.h>
 
-//vars
-;
+extern const uint16_t encode_matrix[12];
+extern const uint16_t decode_matrix[12];
 
-//functions
-void decode_callsign_bytes(uint8_t *outp, const uint8_t *inp);
-void decode_callsign_value(uint8_t *outp, const uint64_t inp);
-uint8_t encode_callsign(uint64_t* out, const uint8_t* inp);
+uint32_t golay24_encode(const uint16_t data);
+uint16_t golay24_sdecode(const uint16_t codeword[24]);
+void decode_LICH(uint8_t* outp, const uint16_t* inp);
 
 #ifdef __cplusplus
 }
-#endif
 #endif

@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - m17call.c
+// M17 C library - payload/call.c
 //
 // This file contains:
 // - callsign encoder and decoders
@@ -9,7 +9,7 @@
 //--------------------------------------------------------------------
 #include <stdio.h>
 #include <string.h>
-#include "m17call.h"
+#include "call.h"
 
 //decodes a 6-byte long array to a callsign
 void decode_callsign_bytes(uint8_t *outp, const uint8_t *inp)

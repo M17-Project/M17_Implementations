@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - m17math.c
+// M17 C library - math/math.c
 //
 // This file contains:
 // - absolute difference value
@@ -11,7 +11,7 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <math.h>
-#include "m17math.h"
+#include "math.h"
 
 /**
  * @brief Utility function returning the absolute value of a difference between
@@ -29,7 +29,7 @@ uint16_t q_abs_diff(const uint16_t v1, const uint16_t v2)
 
 /**
  * @brief Calculate L2 norm between two n-dimensional vectors of floats.
- * 
+ *
  * @param in1 Vector 1.
  * @param in2 Vector 2.
  * @param n Vectors' size.
@@ -84,7 +84,7 @@ uint16_t soft_to_int(const uint16_t* in, const uint8_t len)
 
 /**
  * @brief 1st quadrant fixed point division with saturation.
- * 
+ *
  * @param a Dividend.
  * @param b Divisor.
  * @return uint16_t Quotient = a/b.
@@ -99,7 +99,7 @@ uint16_t div16(const uint16_t a, const uint16_t b)
 
 /**
  * @brief 1st quadrant fixed point multiplication.
- * 
+ *
  * @param a Multiplicand.
  * @param b Multiplier.
  * @return uint16_t Product = a*b.
@@ -111,7 +111,7 @@ uint16_t mul16(const uint16_t a, const uint16_t b)
 
 /**
  * @brief Bilinear interpolation (soft-valued expansion) for XOR.
- * 
+ *
  * @param a Input A.
  * @param b Input B.
  * @return uint16_t Output = A xor B.

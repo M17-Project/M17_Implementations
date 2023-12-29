@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - m17golay.c
+// M17 C library - math/golay.c
 //
 // This file contains:
 // - Golay(24, 12) encoder
@@ -10,12 +10,13 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
-#include "m17math.h"
-#include "m17golay.h"
+
+#include <math/math.h>
+#include "golay.h"
 
 /**
  * @brief Precomputed encoding matrix for Golay(24, 12).
- * 
+ *
  */
 const uint16_t encode_matrix[12]=
 {
@@ -25,7 +26,7 @@ const uint16_t encode_matrix[12]=
 
 /**
  * @brief Precomputed decoding matrix for Golay(24, 12).
- * 
+ *
  */
 const uint16_t decode_matrix[12]=
 {
@@ -35,7 +36,7 @@ const uint16_t decode_matrix[12]=
 
 /**
  * @brief Encode a 12-bit value with Golay(24, 12).
- * 
+ *
  * @param data 12-bit input value (right justified).
  * @return uint32_t 24-bit Golay codeword.
  */
@@ -56,7 +57,7 @@ uint32_t golay24_encode(const uint16_t data)
 
 /**
  * @brief Soft-valued equivalent of `popcount()`
- * 
+ *
  * @param in Pointer to an array holding soft logic vector.
  * @param siz Vector's size.
  * @return uint32_t Sum of all values.
@@ -72,10 +73,10 @@ uint32_t s_popcount(const uint16_t* in, uint8_t siz)
 }
 
 /**
- * @brief 
- * 
- * @param out 
- * @param value 
+ * @brief
+ *
+ * @param out
+ * @param value
  */
 void s_calc_checksum(uint16_t* out, const uint16_t* value)
 {
@@ -100,7 +101,7 @@ void s_calc_checksum(uint16_t* out, const uint16_t* value)
 
 /**
  * @brief Detect errors in a soft-valued Golay(24, 12) codeword.
- * 
+ *
  * @param codeword Input 24-bit soft codeword.
  * @return uint32_t Detected errors vector.
  */
@@ -216,7 +217,7 @@ uint32_t s_detect_errors(const uint16_t* codeword)
 
 /**
  * @brief Soft decode Golay(24, 12) codeword.
- * 
+ *
  * @param codeword Pointer to a 24-element soft-valued (fixed-point) bit codeword.
  * @return uint16_t Decoded data.
  */
@@ -237,7 +238,7 @@ uint16_t golay24_sdecode(const uint16_t codeword[24])
 
 /**
  * @brief Soft decode LICH into a 6-byte array.
- * 
+ *
  * @param outp An array of packed, decoded bits.
  * @param inp Pointer to an array of 96 soft bits.
  */
