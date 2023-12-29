@@ -75,7 +75,7 @@ extern const uint16_t intrl_seq[368];
  * @brief Structure holding Link Setup Frame data.
  * 
  */
-typedef struct LSF
+struct LSF
 {
 	uint8_t dst[6];
 	uint8_t src[6];

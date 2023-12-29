@@ -11,6 +11,7 @@
 extern "C" {
 #endif
 #include <stdint.h>
+#include "m17consts.h"
 
 //vars
 ;

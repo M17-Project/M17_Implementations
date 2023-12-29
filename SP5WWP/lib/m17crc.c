@@ -9,7 +9,6 @@
 //--------------------------------------------------------------------
 #include <string.h>
 #include "m17crc.h"
-#include "m17consts.h"
 
 /**
  * @brief Calculate CRC value.
@@ -42,7 +41,7 @@ uint16_t CRC_M17(const uint8_t *in, const uint16_t len)
  * @param in Pointer to an LSF struct.
  * @return uint16_t CRC value.
  */
-uint16_t LSF_CRC(const struct LSF_t *in)
+uint16_t LSF_CRC(const struct LSF *in)
 {
     uint8_t d[28];
 
