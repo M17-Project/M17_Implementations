@@ -10,6 +10,7 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
+#include "m17math.h"
 #include "m17golay.h"
 
 /**
