@@ -3,23 +3,25 @@ Various implementations
 
 ## Woj's implementation (/SP5WWP)
 ### Overview
-Written in C, it has all the components described by the protocol's specification of the stream mode:
+Written in C, it has all the components described by the protocol's specification of the stream and packet modes:
 - convolutional encoder with soft Viterbi decoder (utilizing fixed point arithmetic),
 - Golay encoder with soft decoder (fixed point),
 - bit interleaver and randomizer,
-- cyclic redundancy check (CRC) validation,
-- callsign decoder
-
-It also supports packet mode (TX only for now).
+- cyclic redundancy check (CRC) calculation (both LSF and arbitrary input),
+- callsign encoder and decoder
 
 There's no support for **any** encryption yet.
 
 ### Building
-Simply `cd` to the directory of interest and
-```make```
+First, build the shared object `libm17.so`:
+```
+cd M17_Implementations/SP5WWP/lib
+make
+```
+Then, `cd` to the directory of interest and ```make``` again.
 
 ### Capabilities
-Two executables are available:
+Four executables are available:
 - `m17-coder-sym` is used to convert a raw binary data bitstream to symbols. Symbol stream has to be
 filtered with an appropriate filter before transmission, see the specification document for details.
 - `m17-decoder-sym` decodes a stream of floats at `stdin`, one sample per symbol. After a valid
@@ -28,6 +30,7 @@ at the input. See the `/grc/symbol_recovery.grc` file for details.
 - `m17-packet-encode` is a handy tool for generating baseband (or a symbol stream, if needed) for
 M17 packets. The program expects a limited stream of raw data at the stdin. The number of bytes is set
 with the `-n` parameter, range 1 to 800.
+- `m17-packet-decode` decodes incoming packets.
 
 ### Testing
 #### Stream mode
