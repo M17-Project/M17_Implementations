@@ -1,12 +1,12 @@
 //--------------------------------------------------------------------
-// M17 C library - m17lib.c
+// M17 C library - lib.c
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <stdio.h>
-#include "m17consts.h"
-#include "m17lib.h"
+#include <encode/symbols.h>
+#include "lib.h"
 
 //misc
 void send_preamble(const uint8_t type)

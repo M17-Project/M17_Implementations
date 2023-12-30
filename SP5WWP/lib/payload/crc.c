@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - m17crc.c
+// M17 C library - payload/crc.c
 //
 // This file contains:
 // - CRC calculating functions (arbitrary length)
@@ -8,11 +8,14 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
-#include "m17crc.h"
+#include "crc.h"
+
+//M17 CRC polynomial
+const uint16_t M17_CRC_POLY = 0x5935;
 
 /**
  * @brief Calculate CRC value.
- * 
+ *
  * @param in Pointer to the input byte array.
  * @param len Input's length.
  * @return uint16_t CRC value.
@@ -37,7 +40,7 @@ uint16_t CRC_M17(const uint8_t *in, const uint16_t len)
 
 /**
  * @brief Calculate CRC value for the Link Setup Frame.
- * 
+ *
  * @param in Pointer to an LSF struct.
  * @return uint16_t CRC value.
  */

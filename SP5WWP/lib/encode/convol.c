@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - m17convol.c
+// M17 C library - encode/convol.c
 //
 // This file contains:
 // - convolutional encoders for the LSF, stream, and packet frames
@@ -8,18 +8,28 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
-#include "m17convol.h"
+#include "convol.h"
+
+const uint8_t puncture_pattern_1[61] = {
+    1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+      1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+      1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,
+      1,0,1,1,1,0,1,1,1,0,1,1
+};
+
+const uint8_t puncture_pattern_2[12]={1,1,1,1,1,1,1,1,1,1,1,0};
+const uint8_t puncture_pattern_3[8]={1,1,1,1,1,1,1,0};
 
 /**
  * @brief Encode M17 stream frame using convolutional encoder with puncturing.
- * 
+ *
  * @param out Output array, unpacked.
  * @param in Input - packed array of uint8_t, 144 type-1 bits.
  * @param fn Input - 16-bit frame number.
  */
 void conv_encode_stream_frame(uint8_t* out, const uint8_t* in, const uint16_t fn)
 {
-	uint8_t pp_len = sizeof(P_2);
+	uint8_t pp_len = sizeof(puncture_pattern_2);
 	uint8_t p=0;			//puncturing pattern index
 	uint16_t pb=0;			//pushed punctured bits
 	uint8_t ud[144+4+4];	//unpacked data
@@ -49,7 +59,7 @@ void conv_encode_stream_frame(uint8_t* out, const uint8_t* in, const uint16_t fn
 
 		//printf("%d%d", G1, G2);
 
-		if(P_2[p])
+		if(puncture_pattern_2[p])
 		{
 			out[pb]=G1;
 			pb++;
@@ -58,7 +68,7 @@ void conv_encode_stream_frame(uint8_t* out, const uint8_t* in, const uint16_t fn
 		p++;
 		p%=pp_len;
 
-		if(P_2[p])
+		if(puncture_pattern_2[p])
 		{
 			out[pb]=G2;
 			pb++;
@@ -73,13 +83,13 @@ void conv_encode_stream_frame(uint8_t* out, const uint8_t* in, const uint16_t fn
 
 /**
  * @brief Encode M17 packet frame using convolutional encoder with puncturing.
- * 
+ *
  * @param out Output array, unpacked.
  * @param in Input - packed array of uint8_t, 206 type-1 bits.
  */
 void conv_encode_packet_frame(uint8_t* out, const uint8_t* in)
 {
-	uint8_t pp_len = sizeof(P_3);
+	uint8_t pp_len = sizeof(puncture_pattern_3);
 	uint8_t p=0;			//puncturing pattern index
 	uint16_t pb=0;			//pushed punctured bits
 	uint8_t ud[206+4+4];	//unpacked data
@@ -104,7 +114,7 @@ void conv_encode_packet_frame(uint8_t* out, const uint8_t* in)
 
 		//fprintf(stderr, "%d%d", G1, G2);
 
-		if(P_3[p])
+		if(puncture_pattern_3[p])
 		{
 			out[pb]=G1;
 			pb++;
@@ -113,7 +123,7 @@ void conv_encode_packet_frame(uint8_t* out, const uint8_t* in)
 		p++;
 		p%=pp_len;
 
-		if(P_3[p])
+		if(puncture_pattern_3[p])
 		{
 			out[pb]=G2;
 			pb++;
@@ -128,13 +138,13 @@ void conv_encode_packet_frame(uint8_t* out, const uint8_t* in)
 
 /**
  * @brief Encode M17 stream frame using convolutional encoder with puncturing.
- * 
+ *
  * @param out Output array, unpacked.
  * @param in Input - pointer to a struct holding the Link Setup Frame.
  */
 void conv_encode_LSF(uint8_t* out, const struct LSF *in)
 {
-	uint8_t pp_len = sizeof(P_1);
+	uint8_t pp_len = sizeof(puncture_pattern_1);
 	uint8_t p=0;			//puncturing pattern index
 	uint16_t pb=0;			//pushed punctured bits
 	uint8_t ud[240+4+4];	//unpacked data
@@ -204,7 +214,7 @@ void conv_encode_LSF(uint8_t* out, const struct LSF *in)
 
 		//printf("%d%d", G1, G2);
 
-		if(P_1[p])
+		if(puncture_pattern_1[p])
 		{
 			out[pb]=G1;
 			pb++;
@@ -213,7 +223,7 @@ void conv_encode_LSF(uint8_t* out, const struct LSF *in)
 		p++;
 		p%=pp_len;
 
-		if(P_1[p])
+		if(puncture_pattern_1[p])
 		{
 			out[pb]=G2;
 			pb++;

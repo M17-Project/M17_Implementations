@@ -1,21 +1,16 @@
 //--------------------------------------------------------------------
-// M17 C library - m17math.h
+// M17 C library - math/math.h
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
-#ifndef M17_MATH_LIB
-#define M17_MATH_LIB
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include <stdint.h>
 
-//vars
-;
-
-//functions
 uint16_t q_abs_diff(const uint16_t v1, const uint16_t v2);
 float eucl_norm(const float* in1, const int8_t* in2, const uint8_t n);
 void int_to_soft(uint16_t* out, const uint16_t in, const uint8_t len);
@@ -27,5 +22,4 @@ void soft_XOR(uint16_t* out, const uint16_t* a, const uint16_t* b, const uint8_t
 
 #ifdef __cplusplus
 }
-#endif
 #endif

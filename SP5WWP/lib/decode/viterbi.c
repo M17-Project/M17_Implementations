@@ -1,17 +1,17 @@
 //--------------------------------------------------------------------
-// M17 C library - m17viterbi.c
+// M17 C library - decode/viterbi.c
 //
 // This file contains:
-// - all the Viterbi decoder stuff
+// - the Viterbi decoder
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <stdio.h>
 #include <string.h>
-#include "m17consts.h"
-#include "m17math.h"
-#include "m17viterbi.h"
+
+#include <math/math.h>
+#include "viterbi.h"
 
 static uint32_t prevMetrics[NUM_STATES];
 static uint32_t currMetrics[NUM_STATES];
