@@ -3,14 +3,15 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../lib/m17lib.h"
-#include "../lib/m17call.h"
-#include "../lib/m17consts.h"
-#include "../lib/m17convol.h"
-#include "../lib/m17crc.h"
-#include "../lib/m17golay.h"
-#include "../lib/m17math.h"
-#include "../lib/m17viterbi.h"
+//libm17
+#include <lib.h>
+#include <encode/convol.h>
+#include <math/golay.h>
+#include <payload/crc.h>
+#include <payload/lsf.h>
+#include <phy/interleave.h>
+#include <phy/randomize.h>
+#include <phy/sync.h>
 
 //#define FN60_DEBUG
 

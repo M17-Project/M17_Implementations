@@ -4,14 +4,18 @@
 #include <string.h>
 #include <math.h>
 
-#include "../lib/m17lib.h"
-#include "../lib/m17call.h"
-#include "../lib/m17consts.h"
-#include "../lib/m17convol.h"
-#include "../lib/m17crc.h"
-#include "../lib/m17golay.h"
-#include "../lib/m17math.h"
-#include "../lib/m17viterbi.h"
+//libm17
+#include <lib.h>
+#include <encode/convol.h>
+#include <encode/symbols.h>
+#include <math/golay.h>
+#include <math/rrc.h>
+#include <payload/call.h>
+#include <payload/crc.h>
+#include <payload/lsf.h>
+#include <phy/interleave.h>
+#include <phy/randomize.h>
+#include <phy/sync.h>
 
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
 
@@ -383,7 +387,7 @@ int main(int argc, char* argv[])
 
                 //calc the sum of products
                 for(uint16_t k=0; k<FLT_LEN; k++)
-                    mac+=mem[k]*taps_10[k]*sqrtf(10.0); //temporary fix for the interpolation gain error
+                    mac+=mem[k]*rrc_taps_10[k]*sqrtf(10.0); //temporary fix for the interpolation gain error
 
                 //shift the delay line right by 1
                 for(int16_t k=FLT_LEN-1; k>0; k--)

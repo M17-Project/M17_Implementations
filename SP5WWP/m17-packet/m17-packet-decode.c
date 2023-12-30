@@ -3,14 +3,19 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../lib/m17lib.h"
-#include "../lib/m17call.h"
-#include "../lib/m17consts.h"
-#include "../lib/m17convol.h"
-#include "../lib/m17crc.h"
-#include "../lib/m17golay.h"
-#include "../lib/m17math.h"
-#include "../lib/m17viterbi.h"
+//libm17
+#include <lib.h>
+#include <decode/symbols.h>
+#include <decode/viterbi.h>
+#include <encode/convol.h>
+#include <encode/symbols.h>
+#include <math/golay.h>
+#include <math/math.h>
+#include <payload/call.h>
+#include <payload/crc.h>
+#include <phy/interleave.h>
+#include <phy/sync.h>
+#include <phy/randomize.h>
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
@@ -94,7 +99,7 @@ int main(int argc, char* argv[])
             last[7]=sample;
 
             //calculate euclidean norm
-            dist = eucl_norm(last, pkt_sync, 8);
+            dist = eucl_norm(last, pkt_sync_symbols, 8);
 
             //fprintf(stderr, "pkt_sync dist: %3.5f\n", dist);
             if(dist<DIST_THRESH) //frame syncword detected
@@ -107,7 +112,7 @@ int main(int argc, char* argv[])
             else
             {
                 //calculate euclidean norm again, this time against LSF syncword
-                dist = eucl_norm(last, lsf_sync, 8);
+                dist = eucl_norm(last, lsf_sync_symbols, 8);
 
                 //fprintf(stderr, "lsf_sync dist: %3.5f\n", dist);
                 if(dist<DIST_THRESH) //LSF syncword
@@ -130,21 +135,21 @@ int main(int argc, char* argv[])
                 for(uint8_t i=0; i<SYM_PER_PLD; i++)
                 {
                     //bit 0
-                    if(pld[i]>=symbs[3])
+                    if(pld[i]>=symbol_map[3])
                     {
                         soft_bit[i*2+1]=0xFFFF;
                     }
-                    else if(pld[i]>=symbs[2])
+                    else if(pld[i]>=symbol_map[2])
                     {
-                        soft_bit[i*2+1]=-(float)0xFFFF/(symbs[3]-symbs[2])*symbs[2]+pld[i]*(float)0xFFFF/(symbs[3]-symbs[2]);
+                        soft_bit[i*2+1]=-(float)0xFFFF/(symbol_map[3]-symbol_map[2])*symbol_map[2]+pld[i]*(float)0xFFFF/(symbol_map[3]-symbol_map[2]);
                     }
-                    else if(pld[i]>=symbs[1])
+                    else if(pld[i]>=symbol_map[1])
                     {
                         soft_bit[i*2+1]=0x0000;
                     }
-                    else if(pld[i]>=symbs[0])
+                    else if(pld[i]>=symbol_map[0])
                     {
-                        soft_bit[i*2+1]=(float)0xFFFF/(symbs[1]-symbs[0])*symbs[1]-pld[i]*(float)0xFFFF/(symbs[1]-symbs[0]);
+                        soft_bit[i*2+1]=(float)0xFFFF/(symbol_map[1]-symbol_map[0])*symbol_map[1]-pld[i]*(float)0xFFFF/(symbol_map[1]-symbol_map[0]);
                     }
                     else
                     {
@@ -152,13 +157,13 @@ int main(int argc, char* argv[])
                     }
 
                     //bit 1
-                    if(pld[i]>=symbs[2])
+                    if(pld[i]>=symbol_map[2])
                     {
                         soft_bit[i*2]=0x0000;
                     }
-                    else if(pld[i]>=symbs[1])
+                    else if(pld[i]>=symbol_map[1])
                     {
-                        soft_bit[i*2]=0x7FFF-pld[i]*(float)0xFFFF/(symbs[2]-symbs[1]);
+                        soft_bit[i*2]=0x7FFF-pld[i]*(float)0xFFFF/(symbol_map[2]-symbol_map[1]);
                     }
                     else
                     {
@@ -183,7 +188,7 @@ int main(int argc, char* argv[])
                 if(!fl)
                 {
                     //decode
-                    uint32_t e=viterbi_decode_punctured(frame_data, d_soft_bit, P_3, SYM_PER_PLD*2, 8);
+                    uint32_t e=viterbi_decode_punctured(frame_data, d_soft_bit, puncture_pattern_3, SYM_PER_PLD*2, 8);
 
                     //dump FN
                     uint8_t rx_fn=(frame_data[26]>>2)&0x1F;
@@ -246,7 +251,7 @@ int main(int argc, char* argv[])
                     //fprintf(stderr, "LSF\n");
 
                     //decode
-                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, P_1, 2*SYM_PER_PLD, 61);
+                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
 
                     //shift the buffer 1 position left - get rid of the encoded flushing bits
                     for(uint8_t i=0; i<30; i++)
