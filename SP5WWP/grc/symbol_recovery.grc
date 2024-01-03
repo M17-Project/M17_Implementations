@@ -5,7 +5,7 @@ options:
     category: '[GRC Hier Blocks]'
     cmake_opt: ''
     comment: ''
-    copyright: M17 Project, Dec 2022
+    copyright: M17 Project, Jan 2024
     description: ''
     gen_cmake: 'On'
     gen_linking: dynamic
@@ -33,6 +33,30 @@ options:
     state: enabled
 
 blocks:
+- name: decim
+  id: variable
+  parameters:
+    comment: ''
+    value: '40'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [360, 12.0]
+    rotation: 0
+    state: enabled
+- name: sps
+  id: variable
+  parameters:
+    comment: ''
+    value: '10'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [288, 12.0]
+    rotation: 0
+    state: enabled
 - name: symbol_rate
   id: variable
   parameters:
@@ -51,7 +75,7 @@ blocks:
     affinity: ''
     alias: ''
     comment: ''
-    gain: 24000/(2*math.pi*800)
+    gain: (symbol_rate*sps)/(2*math.pi*800)
     maxoutbuf: '0'
     minoutbuf: '0'
   states:
@@ -188,15 +212,15 @@ blocks:
     comment: ''
     constellation: digital.constellation_bpsk().base()
     damping: '1.0'
-    loop_bw: '0.05'
-    max_dev: '1.5'
+    loop_bw: 2.0*math.pi*0.0015
+    max_dev: '0.05'
     maxoutbuf: '0'
     minoutbuf: '0'
     nfilters: '128'
     osps: '1'
     pfb_mf_taps: '[]'
     resamp_type: digital.IR_MMSE_8TAP
-    sps: '5'
+    sps: sps
     ted_gain: '1.0'
     ted_type: digital.TED_GARDNER
     type: ff
@@ -406,7 +430,7 @@ blocks:
     affinity: ''
     alias: ''
     comment: ''
-    decim: '80'
+    decim: decim
     fbw: '0'
     interp: '1'
     maxoutbuf: '0'
@@ -432,8 +456,8 @@ blocks:
     interp: '1'
     maxoutbuf: '0'
     minoutbuf: '0'
-    ntaps: 8*5+1
-    samp_rate: '5'
+    ntaps: 8*sps+1
+    samp_rate: sps
     sym_rate: '1'
     type: fir_filter_fff
   states:
@@ -472,6 +496,7 @@ blocks:
     affinity: ''
     agc: 'True'
     alias: ''
+    bias: 'False'
     center_freq: '439950000'
     comment: ''
     dev_args: ''
@@ -479,7 +504,7 @@ blocks:
     gain: '20'
     maxoutbuf: '0'
     minoutbuf: '0'
-    samp_rate: 24000*80
+    samp_rate: symbol_rate*sps*decim
     type: fc32
   states:
     bus_sink: false
@@ -508,4 +533,4 @@ connections:
 
 metadata:
   file_format: 1
-  grc_version: 3.10.4.0
+  grc_version: 3.10.7.0
