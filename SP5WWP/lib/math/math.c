@@ -83,6 +83,32 @@ uint16_t soft_to_int(const uint16_t* in, const uint8_t len)
 }
 
 /**
+ * @brief 1st quadrant fixed point addition with saturation.
+ *
+ * @param a Addend 1.
+ * @param b Addend 2.
+ * @return uint16_t Sum = a+b.
+ */
+uint16_t add16(const uint16_t a, const uint16_t b)
+{
+	uint32_t r=(uint32_t)a+b;
+	
+	return r<=0xFFFFU ? r : 0xFFFFU;
+}
+
+/**
+ * @brief 1st quadrant fixed point subtraction with saturation.
+ *
+ * @param a Minuend.
+ * @param b Subtrahent.
+ * @return uint16_t Difference = a-b.
+ */
+uint16_t sub16(const uint16_t a, const uint16_t b)
+{	
+	return a>=b ? a-b : 0x0000U;
+}
+
+/**
  * @brief 1st quadrant fixed point division with saturation.
  *
  * @param a Dividend.
@@ -111,19 +137,22 @@ uint16_t mul16(const uint16_t a, const uint16_t b)
 
 /**
  * @brief Bilinear interpolation (soft-valued expansion) for XOR.
- *
+ * This approach retains XOR(0.5, 0.5)=0.5
+ * https://math.stackexchange.com/questions/3505934/evaluation-of-not-and-xor-in-fuzzy-logic-rules
  * @param a Input A.
  * @param b Input B.
  * @return uint16_t Output = A xor B.
  */
 uint16_t soft_bit_XOR(const uint16_t a, const uint16_t b)
 {
-	return mul16(div16(0xFFFF-b, 0xFFFF), div16(a, 0xFFFF)) + mul16(div16(b, 0xFFFF), div16(0xFFFF-a, 0xFFFF));
+	//a(1-b)+b(1-a)
+	//return mul16(div16(0xFFFF-b, 0xFFFF), div16(a, 0xFFFF)) + mul16(div16(b, 0xFFFF), div16(0xFFFF-a, 0xFFFF));
+	return add16(mul16(a, sub16(0xFFFF, b)), mul16(b, sub16(0xFFFF, a)));
 }
 
 /**
  * @brief XOR for vectors of soft-valued logic.
- * Max length is 16.
+ * Max length is 255.
  * @param out Output vector = A xor B.
  * @param a Input vector A.
  * @param b Input vector B.
