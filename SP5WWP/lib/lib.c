@@ -2,66 +2,80 @@
 // M17 C library - lib.c
 //
 // Wojciech Kaczmarski, SP5WWP
-// M17 Project, 29 December 2023
+// M17 Project, 5 January 2024
 //--------------------------------------------------------------------
-#include <stdio.h>
 #include <encode/symbols.h>
 #include "lib.h"
 
-//misc
-void send_preamble(const uint8_t type)
+/**
+ * @brief Generate symbol stream for a preamble.
+ * 
+ * @param out Frame buffer (192 floats)
+ * @param cnt Pointer to a variable holding the number of written symbols.
+ * @param type Preamble type (pre-BERT or pre-LSF).
+ */
+void send_preamble(float out[SYM_PER_FRA], uint32_t *cnt, const uint8_t type)
 {
-    float symb;
-
     if(type) //pre-BERT
     {
-        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
         {
-            symb=-3.0;
-            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
-            symb=+3.0;
-            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
+            out[(*cnt)++]=-3.0;
+            out[(*cnt)++]=+3.0;
         }
     }
     else //pre-LSF
     {
-        for(uint16_t i=0; i<192/2; i++) //40ms * 4800 = 192
+        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
         {
-            symb=+3.0;
-            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
-            symb=-3.0;
-            fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
+            out[(*cnt)++]=+3.0;
+            out[(*cnt)++]=-3.0;
         }
     }
 }
 
-void send_syncword(const uint16_t syncword)
+/**
+ * @brief Generate symbol stream for a syncword.
+ * 
+ * @param out Output buffer (8 floats).
+ * @param cnt Pointer to a variable holding the number of written symbols.
+ * @param syncword Syncword.
+ */
+void send_syncword(float out[SYM_PER_SWD], uint32_t *cnt, const uint16_t syncword)
 {
-    float symb;
-
-    for(uint8_t i=0; i<16; i+=2)
+    for(uint8_t i=0; i<SYM_PER_SWD*2; i+=2)
     {
-        symb=symbol_map[(syncword>>(14-i))&3];
-        fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
+        out[(*cnt)++]=symbol_map[(syncword>>(14-i))&3];
     }
 }
 
 //send the data (can be used for both LSF and frames)
-void send_data(const uint8_t* in)
+/**
+ * @brief Generate symbol stream for frame contents (without syncword).
+ * Can be used for both LSF and data frames.
+ * 
+ * @param out Output buffer (184 floats).
+ * @param cnt Pointer to a variable holding the number of written symbols.
+ * @param in Data input.
+ */
+void send_data(float out[SYM_PER_PLD], uint32_t *cnt, const uint8_t* in)
 {
-	float s=0.0;
 	for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
 	{
-		s=symbol_map[in[2*i]*2+in[2*i+1]];
-		fwrite((uint8_t*)&s, sizeof(float), 1, stdout);
+        out[(*cnt)++]=symbol_map[in[2*i]*2+in[2*i+1]];
 	}
 }
 
-void send_eot(void)
+/**
+ * @brief Generate symbol stream for the End of Transmission marker.
+ * 
+ * @param out Output buffer (192 floats).
+ * @param cnt Pointer to a variable holding the number of written symbols.
+ */
+void send_eot(float out[SYM_PER_FRA], uint32_t *cnt)
 {
-    float symb=+3.0;
-    for(uint16_t i=0; i<192; i++) //40ms * 4800 = 192
+    for(uint16_t i=0; i<SYM_PER_FRA; i++) //40ms * 4800 = 192
     {
-        fwrite((uint8_t*)&symb, sizeof(float), 1, stdout);
+        out[(*cnt)++]=eot_symbols[i%8];
     }
 }

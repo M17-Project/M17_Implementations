@@ -22,6 +22,9 @@ uint8_t lich_encoded[12];           //96 bits packed, encoded LICH
 uint8_t enc_bits[SYM_PER_PLD*2];    //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];     //type-4 bits, unpacked
 
+float frame_buff[192];
+uint32_t frame_buff_cnt;
+
 uint8_t data[16], next_data[16];    //raw payload, packed bits
 uint16_t fn=0;                      //16-bit Frame Number (for the stream mode)
 uint8_t lich_cnt=0;                 //0..5 LICH counter
@@ -66,7 +69,8 @@ int main(void)
         if(got_lsf) //stream frames
         {
             //send stream frame syncword
-            send_syncword(SYNC_STR);
+            frame_buff_cnt=0;
+            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
 
             //extract LICH from the whole LSF
             switch(lich_cnt)
@@ -178,7 +182,9 @@ int main(void)
                 fwrite((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
 			//send frame data
-			send_data(rf_bits);
+            frame_buff_cnt=0;
+			send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
             /*printf("\tDATA: ");
             for(uint8_t i=0; i<16; i++)
@@ -204,11 +210,15 @@ int main(void)
             //encode LSF data
             conv_encode_LSF(enc_bits, &lsf);
 
-            //send out the preamble and LSF
-			send_preamble(0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+            //send out the preamble
+            frame_buff_cnt=0;
+			send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
             //send LSF syncword
-			send_syncword(SYNC_LSF);
+            frame_buff_cnt=0;
+			send_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
+            fwrite((uint8_t*)frame_buff, SYM_PER_SWD*sizeof(float), 1, stdout);
 
             //reorder bits
             for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -227,7 +237,9 @@ int main(void)
             }
 
 			//send LSF data
-			send_data(rf_bits);
+            frame_buff_cnt=0;
+			send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
 
             //send dummy symbols (debug)
             /*float s=0.0;
@@ -253,7 +265,11 @@ int main(void)
 		}
 
         if(finished)
-            send_eot();
+        {
+            frame_buff_cnt=0;
+            send_eot(frame_buff, &frame_buff_cnt);
+            fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
+        }
 	}
 
 	return 0;

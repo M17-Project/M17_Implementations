@@ -2,7 +2,7 @@
 // M17 C library - lib.h
 //
 // Wojciech Kaczmarski, SP5WWP
-// M17 Project, 28 December 2023
+// M17 Project, 5 January 2024
 //-------------------------------
 #pragma once
 
@@ -22,10 +22,10 @@ extern "C" {
 //L2 metric threshold
 #define DIST_THRESH         2.0f                    //threshold for distance (syncword detection)
 
-void send_preamble(const uint8_t type);
-void send_syncword(const uint16_t syncword);
-void send_data(const uint8_t* in);
-void send_eot(void);
+void send_preamble(float out[SYM_PER_FRA], uint32_t *cnt, const uint8_t type);
+void send_syncword(float out[SYM_PER_SWD], uint32_t *cnt, const uint16_t syncword);
+void send_data(float out[SYM_PER_PLD], uint32_t *cnt, const uint8_t* in);
+void send_eot(float out[SYM_PER_FRA], uint32_t *cnt);
 
 #ifdef __cplusplus
 }

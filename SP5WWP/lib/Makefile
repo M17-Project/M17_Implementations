@@ -15,6 +15,9 @@ clean:
 fclean:
 	rm -f $(TARGET)
 
+install:
+	sudo install $(TARGET) /usr/local/lib
+
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) -o $@ $(LDFLAGS)
 
