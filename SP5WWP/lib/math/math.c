@@ -105,7 +105,10 @@ uint16_t add16(const uint16_t a, const uint16_t b)
  */
 uint16_t sub16(const uint16_t a, const uint16_t b)
 {	
-	return a>=b ? a-b : 0x0000U;
+	if(a>=b)
+		return a-b;
+	else
+		return 0x0000U;
 }
 
 /**

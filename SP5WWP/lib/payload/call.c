@@ -23,7 +23,7 @@ void decode_callsign_bytes(uint8_t *outp, const uint8_t inp[6])
 
 	//repack the data to a uint64_t
 	for(uint8_t i=0; i<6; i++)
-		encoded|=(uint64_t)inp[5-i]<<(8*i);
+		encoded|=(uint64_t)inp[i]<<(8*i);
 
 	//check if the value is reserved (not a callsign)
 	if(encoded>=262144000000000ULL)

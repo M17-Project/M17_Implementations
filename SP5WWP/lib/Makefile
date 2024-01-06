@@ -2,7 +2,7 @@ INC     = -I .
 
 TARGET  = libm17.so
 
-CFLAGS  = $(INC) -fPIC -Wall
+CFLAGS  = $(INC) -fPIC -Wall -Wextra
 LDFLAGS = -shared -lm
 SRCS    = $(wildcard *.c) $(wildcard */*.c)
 OBJS    = $(SRCS:.c=.o)
