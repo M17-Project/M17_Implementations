@@ -11,8 +11,13 @@
 #include <string.h>
 #include "call.h"
 
-//decodes a 6-byte long array to a callsign
-void decode_callsign_bytes(uint8_t *outp, const uint8_t *inp)
+/**
+ * @brief Decode a 6-byte long array (little-endian) into callsign string.
+ * 
+ * @param outp Decoded callsign string.
+ * @param inp Pointer to a byte array holding the encoded value (little-endian).
+ */
+void decode_callsign_bytes(uint8_t *outp, const uint8_t inp[6])
 {
 	uint64_t encoded=0;
 
@@ -23,9 +28,9 @@ void decode_callsign_bytes(uint8_t *outp, const uint8_t *inp)
 	//check if the value is reserved (not a callsign)
 	if(encoded>=262144000000000ULL)
 	{
-        if(encoded==0xFFFFFFFFFFFF) //broadcast
+        if(encoded==0xFFFFFFFFFFFF) //"ALL"
         {
-            sprintf((char*)outp, "#BCAST");
+            sprintf((char*)outp, "ALL"); //'#' prefix needed here?
         }
         else
         {
@@ -39,14 +44,19 @@ void decode_callsign_bytes(uint8_t *outp, const uint8_t *inp)
 	uint8_t i=0;
 	while(encoded>0)
 	{
-		outp[i]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/."[encoded%40];
+		outp[i]=CHAR_MAP[encoded%40];
 		encoded/=40;
 		i++;
 	}
 	outp[i]=0;
 }
 
-//decodes a 48-bit value to a callsign
+/**
+ * @brief Decode a 48-bit value (stored as uint64_t) into callsign string.
+ * 
+ * @param outp Decoded callsign string.
+ * @param inp Encoded value.
+ */
 void decode_callsign_value(uint8_t *outp, const uint64_t inp)
 {
     uint64_t encoded=inp;
@@ -54,9 +64,9 @@ void decode_callsign_value(uint8_t *outp, const uint64_t inp)
 	//check if the value is reserved (not a callsign)
 	if(encoded>=262144000000000ULL)
 	{
-        if(encoded==0xFFFFFFFFFFFF) //broadcast
+        if(encoded==0xFFFFFFFFFFFF) //"ALL"
         {
-            sprintf((char*)outp, "#BCAST");
+            sprintf((char*)outp, "ALL"); //'#' prefix needed here?
         }
         else
         {
@@ -70,15 +80,21 @@ void decode_callsign_value(uint8_t *outp, const uint64_t inp)
 	uint8_t i=0;
 	while(encoded>0)
 	{
-		outp[i]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/."[encoded%40];
+		outp[i]=CHAR_MAP[encoded%40];
 		encoded/=40;
 		i++;
 	}
 	outp[i]=0;
 }
 
-//encode callsign into a 48-bit value
-uint8_t encode_callsign(uint64_t* out, const uint8_t* inp)
+/**
+ * @brief Encode callsign string and store in a 6-byte array (little-endian)
+ * 
+ * @param out Pointer to a byte array for the encoded value (little-endian).
+ * @param inp Callsign string.
+ * @return int8_t Return value, 0 -> OK.
+ */
+int8_t encode_callsign_bytes(uint8_t out[6], const uint8_t *inp)
 {
     //assert inp length
     if(strlen((const char*)inp)>9)
@@ -86,7 +102,51 @@ uint8_t encode_callsign(uint64_t* out, const uint8_t* inp)
         return -1;
     }
 
-    const uint8_t charMap[40]=" ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/.";
+    const uint8_t charMap[40]=CHAR_MAP;
+
+    uint64_t tmp=0;
+
+    if(strcmp((const char*)inp, "ALL")==0)
+    {
+        tmp=0xFFFFFFFFFFFF;
+    }
+    else
+    {
+        for(int8_t i=strlen((const char*)inp)-1; i>=0; i--)
+        {
+            for(uint8_t j=0; j<40; j++)
+            {
+                if(inp[i]==charMap[j])
+                {
+                    tmp=tmp*40+j;
+                    break;
+                }
+            }
+        }
+    }
+
+	for(uint8_t i=0; i<6; i++)
+    	out[i]=(tmp>>(8*i))&0xFF;
+    	
+    return 0;
+}
+
+/**
+ * @brief Encode callsign string into a 48-bit value, stored as uint64_t.
+ * 
+ * @param out Pointer to a uint64_t variable for the encoded value.
+ * @param inp Callsign string.
+ * @return int8_t Return value, 0 -> OK.
+ */
+int8_t encode_callsign_value(uint64_t *out, const uint8_t *inp)
+{
+    //assert inp length
+    if(strlen((const char*)inp)>9)
+    {
+        return -1;
+    }
+
+    const uint8_t charMap[40]=CHAR_MAP;
 
     uint64_t tmp=0;
 

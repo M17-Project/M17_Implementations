@@ -217,8 +217,8 @@ int main(int argc, char* argv[])
     //encode dst, src for the lsf struct
     uint64_t dst_encoded=0, src_encoded=0;
     uint16_t type=0;
-    encode_callsign(&dst_encoded, dst_raw);
-    encode_callsign(&src_encoded, src_raw);
+    encode_callsign_value(&dst_encoded, dst_raw);
+    encode_callsign_value(&src_encoded, src_raw);
     for(int8_t i=5; i>=0; i--)
     {
         lsf.dst[5-i]=(dst_encoded>>(i*8))&0xFF;
