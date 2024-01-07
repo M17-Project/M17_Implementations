@@ -8,7 +8,7 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
-#include "crc.h"
+#include <m17/m17.h>
 
 //M17 CRC polynomial
 const uint16_t M17_CRC_POLY = 0x5935;

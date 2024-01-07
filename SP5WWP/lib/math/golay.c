@@ -11,8 +11,7 @@
 //--------------------------------------------------------------------
 #include <string.h>
 
-#include <math/math.h>
-#include "golay.h"
+#include <m17/m17.h>
 
 /**
  * @brief Precomputed encoding matrix for Golay(24, 12).

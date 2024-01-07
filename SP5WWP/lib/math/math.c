@@ -11,7 +11,7 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <math.h>
-#include "math.h"
+#include <m17/m17.h>
 
 /**
  * @brief Utility function returning the absolute value of a difference between

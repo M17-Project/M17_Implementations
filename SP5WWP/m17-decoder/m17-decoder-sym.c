@@ -4,18 +4,7 @@
 #include <string.h>
 
 //libm17
-#include <lib.h>
-#include <decode/symbols.h>
-#include <decode/viterbi.h>
-#include <encode/convol.h>
-#include <encode/symbols.h>
-#include <math/golay.h>
-#include <math/math.h>
-#include <payload/call.h>
-#include <payload/crc.h>
-#include <phy/interleave.h>
-#include <phy/sync.h>
-#include <phy/randomize.h>
+#include <m17/m17.h>
 
 #define DECODE_CALLSIGNS
 #define SHOW_VITERBI_ERRS

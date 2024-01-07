@@ -9,7 +9,7 @@
 //--------------------------------------------------------------------
 #include <stdio.h>
 #include <string.h>
-#include "call.h"
+#include <m17/m17.h>
 
 /**
  * @brief Decode a 6-byte long array (little-endian) into callsign string.

@@ -5,7 +5,7 @@
 // M17 Project, 28 December 2023
 //-------------------------------
 
-#include "interleave.h"
+#include <m17/m17.h>
 
 //interleaver pattern
 const uint16_t intrl_seq[368]=
