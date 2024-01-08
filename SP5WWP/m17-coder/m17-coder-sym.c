@@ -66,81 +66,10 @@ int main(void)
             send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
 
             //extract LICH from the whole LSF
-            switch(lich_cnt)
-            {
-                case 0:
-                    lich[0]=lsf.dst[0];
-                    lich[1]=lsf.dst[1];
-                    lich[2]=lsf.dst[2];
-                    lich[3]=lsf.dst[3];
-                    lich[4]=lsf.dst[4];
-                break;
-
-                case 1:
-                    lich[0]=lsf.dst[5];
-                    lich[1]=lsf.src[0];
-                    lich[2]=lsf.src[1];
-                    lich[3]=lsf.src[2];
-                    lich[4]=lsf.src[3];
-                break;
-
-                case 2:
-                    lich[0]=lsf.src[4];
-                    lich[1]=lsf.src[5];
-                    lich[2]=lsf.type[0];
-                    lich[3]=lsf.type[1];
-                    lich[4]=lsf.meta[0];
-                break;
-
-                case 3:
-                    lich[0]=lsf.meta[1];
-                    lich[1]=lsf.meta[2];
-                    lich[2]=lsf.meta[3];
-                    lich[3]=lsf.meta[4];
-                    lich[4]=lsf.meta[5];
-                break;
-
-                case 4:
-                    lich[0]=lsf.meta[6];
-                    lich[1]=lsf.meta[7];
-                    lich[2]=lsf.meta[8];
-                    lich[3]=lsf.meta[9];
-                    lich[4]=lsf.meta[10];
-                break;
-
-                case 5:
-                    lich[0]=lsf.meta[11];
-                    lich[1]=lsf.meta[12];
-                    lich[2]=lsf.meta[13];
-                    lich[3]=lsf.crc[0];
-                    lich[4]=lsf.crc[1];
-                break;
-
-                default:
-                    ;
-                break;
-            }
-            lich[5]=lich_cnt<<5;
+            extract_LICH(lich, lich_cnt, &lsf);
 
             //encode the LICH
-            uint32_t val;
-
-            val=golay24_encode((lich[0]<<4)|(lich[1]>>4));
-            lich_encoded[0]=(val>>16)&0xFF;
-            lich_encoded[1]=(val>>8)&0xFF;
-            lich_encoded[2]=(val>>0)&0xFF;
-            val=golay24_encode(((lich[1]&0x0F)<<8)|lich[2]);
-            lich_encoded[3]=(val>>16)&0xFF;
-            lich_encoded[4]=(val>>8)&0xFF;
-            lich_encoded[5]=(val>>0)&0xFF;
-            val=golay24_encode((lich[3]<<4)|(lich[4]>>4));
-            lich_encoded[6]=(val>>16)&0xFF;
-            lich_encoded[7]=(val>>8)&0xFF;
-            lich_encoded[8]=(val>>0)&0xFF;
-            val=golay24_encode(((lich[4]&0x0F)<<8)|lich[5]);
-            lich_encoded[9]=(val>>16)&0xFF;
-            lich_encoded[10]=(val>>8)&0xFF;
-            lich_encoded[11]=(val>>0)&0xFF;
+            encode_LICH(lich_encoded, lich);
 
             //unpack LICH (12 bytes)
             memset(enc_bits, 0, SYM_PER_PLD*2);
@@ -154,20 +83,10 @@ int main(void)
             conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
 
             //reorder bits
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                rf_bits[i]=enc_bits[intrl_seq[i]];
+            reorder_bits(rf_bits, enc_bits);
 
             //randomize
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-            {
-                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-                {
-                    if(rf_bits[i])
-                        rf_bits[i]=0;
-                    else
-                        rf_bits[i]=1;
-                }
-            }
+            randomize_bits(rf_bits);
 
             //send dummy symbols (debug)
             /*float s=0.0;

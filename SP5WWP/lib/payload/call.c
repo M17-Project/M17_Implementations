@@ -2,7 +2,7 @@
 // M17 C library - payload/call.c
 //
 // This file contains:
-// - callsign encoder and decoders
+// - callsign encoders and decoders
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023

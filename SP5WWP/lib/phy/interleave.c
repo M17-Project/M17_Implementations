@@ -8,7 +8,7 @@
 #include <m17/m17.h>
 
 //interleaver pattern
-const uint16_t intrl_seq[368]=
+const uint16_t intrl_seq[SYM_PER_PLD*2]=
 {
 	0, 137, 90, 227, 180, 317, 270, 39, 360, 129, 82, 219, 172, 309, 262, 31,
 	352, 121, 74, 211, 164, 301, 254, 23, 344, 113, 66, 203, 156, 293, 246, 15,
@@ -34,3 +34,15 @@ const uint16_t intrl_seq[368]=
 	32, 169, 122, 259, 212, 349, 302, 71, 24, 161, 114, 251, 204, 341, 294, 63,
 	16, 153, 106, 243, 196, 333, 286, 55, 8, 145, 98, 235, 188, 325, 278, 47
 };
+
+/**
+ * @brief Reorder (interleave) unpacked payload bits.
+ * 
+ * @param outp Reordered, unpacked type-4 bits.
+ * @param inp Input unpacked type-2/3 bits.
+ */
+void reorder_bits(uint8_t outp[SYM_PER_PLD*2], const uint8_t inp[SYM_PER_PLD*2])
+{
+	for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+        outp[i]=inp[intrl_seq[i]];
+}

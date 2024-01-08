@@ -29,7 +29,6 @@ void send_syncword(float out[SYM_PER_SWD], uint32_t *cnt, const uint16_t syncwor
 void send_data(float out[SYM_PER_PLD], uint32_t *cnt, const uint8_t* in);
 void send_eot(float out[SYM_PER_FRA], uint32_t *cnt);
 
-
 // M17 C library - lib/payload/call.c
 #define CHAR_MAP " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-/."
 
@@ -68,17 +67,23 @@ extern const uint16_t M17_CRC_POLY;
 uint16_t CRC_M17(const uint8_t *in, const uint16_t len);
 uint16_t LSF_CRC(const struct LSF *in);
 
+// M17 C library - lib/payload/lich.c
+void extract_LICH(uint8_t outp[6], const uint8_t cnt, const struct LSF *inp);
+
 // M17 C library - lib/math/golay.c
 extern const uint16_t encode_matrix[12];
 extern const uint16_t decode_matrix[12];
 
 uint32_t golay24_encode(const uint16_t data);
 uint16_t golay24_sdecode(const uint16_t codeword[24]);
-void decode_LICH(uint8_t* outp, const uint16_t* inp);
+void decode_LICH(uint8_t outp[6], const uint16_t inp[96]);
+void encode_LICH(uint8_t outp[12], const uint8_t inp[6]);
 
 // M17 C library - lib/phy/interleave.c
 //interleaver pattern
-extern const uint16_t intrl_seq[368];
+extern const uint16_t intrl_seq[SYM_PER_PLD*2];
+
+void reorder_bits(uint8_t outp[SYM_PER_PLD*2], const uint8_t inp[SYM_PER_PLD*2]);
 
 // M17 C library - lib/math/math.c
 uint16_t q_abs_diff(const uint16_t v1, const uint16_t v2);
@@ -93,6 +98,8 @@ void soft_XOR(uint16_t* out, const uint16_t* a, const uint16_t* b, const uint8_t
 // M17 C library - lib/phy/randomize.c
 //randomizing pattern
 extern const uint8_t rand_seq[46];
+
+void randomize_bits(uint8_t inp[SYM_PER_PLD*2]);
 
 // M17 C library - lib/math/rrc.c
 //sample RRC filter for 48kHz sample rate

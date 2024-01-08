@@ -241,11 +241,11 @@ uint16_t golay24_sdecode(const uint16_t codeword[24])
  * @param outp An array of packed, decoded bits.
  * @param inp Pointer to an array of 96 soft bits.
  */
-void decode_LICH(uint8_t* outp, const uint16_t* inp)
+void decode_LICH(uint8_t outp[6], const uint16_t inp[96])
 {
     uint16_t tmp;
 
-    memset(outp, 0, 5);
+    //memset(outp, 0, 6);
 
     tmp=golay24_sdecode(&inp[0]);
     outp[0]=(tmp>>4)&0xFF;
@@ -259,4 +259,26 @@ void decode_LICH(uint8_t* outp, const uint16_t* inp)
     tmp=golay24_sdecode(&inp[3*24]);
     outp[4]|=(tmp>>8)&0xF;
     outp[5]=tmp&0xFF;
+}
+
+void encode_LICH(uint8_t outp[12], const uint8_t inp[6])
+{
+    uint32_t val;
+
+    val=golay24_encode((inp[0]<<4)|(inp[1]>>4));
+    outp[0]=(val>>16)&0xFF;
+    outp[1]=(val>>8)&0xFF;
+    outp[2]=(val>>0)&0xFF;
+    val=golay24_encode(((inp[1]&0x0F)<<8)|inp[2]);
+    outp[3]=(val>>16)&0xFF;
+    outp[4]=(val>>8)&0xFF;
+    outp[5]=(val>>0)&0xFF;
+    val=golay24_encode((inp[3]<<4)|(inp[4]>>4));
+    outp[6]=(val>>16)&0xFF;
+    outp[7]=(val>>8)&0xFF;
+    outp[8]=(val>>0)&0xFF;
+    val=golay24_encode(((inp[4]&0x0F)<<8)|inp[5]);
+    outp[9]=(val>>16)&0xFF;
+    outp[10]=(val>>8)&0xFF;
+    outp[11]=(val>>0)&0xFF;
 }
