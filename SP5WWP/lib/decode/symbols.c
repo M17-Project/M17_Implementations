@@ -4,7 +4,7 @@
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
-#include "symbols.h"
+#include <m17/m17.h>
 
 // syncword patterns (RX)
 // TODO: Compute those at runtime from the consts below

@@ -10,8 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <math/math.h>
-#include "viterbi.h"
+#include <m17/m17.h>
 
 static uint32_t prevMetrics[NUM_STATES];
 static uint32_t currMetrics[NUM_STATES];

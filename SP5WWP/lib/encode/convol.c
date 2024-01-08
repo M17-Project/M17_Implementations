@@ -8,7 +8,7 @@
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
 #include <string.h>
-#include "convol.h"
+#include <m17/m17.h>
 
 const uint8_t puncture_pattern_1[61] = {
     1,1,0,1,1,1,0,1,1,1,0,1,1,1,0,1,1,

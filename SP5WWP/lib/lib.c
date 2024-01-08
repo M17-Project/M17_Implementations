@@ -4,8 +4,7 @@
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 5 January 2024
 //--------------------------------------------------------------------
-#include <encode/symbols.h>
-#include "lib.h"
+#include <m17/m17.h>
 
 /**
  * @brief Generate symbol stream for a preamble.

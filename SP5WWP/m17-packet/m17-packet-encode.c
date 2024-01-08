@@ -5,17 +5,7 @@
 #include <math.h>
 
 //libm17
-#include <lib.h>
-#include <encode/convol.h>
-#include <encode/symbols.h>
-#include <math/golay.h>
-#include <math/rrc.h>
-#include <payload/call.h>
-#include <payload/crc.h>
-#include <payload/lsf.h>
-#include <phy/interleave.h>
-#include <phy/randomize.h>
-#include <phy/sync.h>
+#include <m17/m17.h>
 
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
 

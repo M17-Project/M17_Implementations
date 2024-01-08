@@ -4,7 +4,7 @@
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023
 //--------------------------------------------------------------------
-#include "rrc.h"
+#include <m17/m17.h>
 
 //sample RRC filter for 48kHz sample rate
 //alpha=0.5, span=8, sps=10, gain=sqrt(sps)

@@ -4,18 +4,7 @@
 #include <string.h>
 
 //libm17
-#include <lib.h>
-#include <decode/symbols.h>
-#include <decode/viterbi.h>
-#include <encode/convol.h>
-#include <encode/symbols.h>
-#include <math/golay.h>
-#include <math/math.h>
-#include <payload/call.h>
-#include <payload/crc.h>
-#include <phy/interleave.h>
-#include <phy/sync.h>
-#include <phy/randomize.h>
+#include <m17/m17.h>
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
