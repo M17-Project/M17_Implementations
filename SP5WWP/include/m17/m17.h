@@ -106,6 +106,7 @@ extern const float rrc_taps_5[8*5+1];
 // M17 C library - lib/encode/symbols.c
 // dibits-symbols map (TX)
 extern const int8_t symbol_map[4];
+extern const int8_t symbol_list[4];
 
 // M17 C library - lib/phy/sync.c
 //syncwords
@@ -124,10 +125,6 @@ uint32_t viterbi_decode_punctured(uint8_t* out, const uint16_t* in, const uint8_
 void viterbi_decode_bit(uint16_t s0, uint16_t s1, size_t pos);
 uint32_t viterbi_chainback(uint8_t* out, size_t pos, const uint16_t len);
 void viterbi_reset(void);
-
-// M17 C library - encode/symbols.c
-// dibits-symbols map (TX)
-extern const int8_t symbol_map[4];
 
 //End of Transmission symbol pattern
 extern const float eot_symbols[8];

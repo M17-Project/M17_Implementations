@@ -51,7 +51,7 @@ uint32_t golay24_encode(const uint16_t data)
         }
     }
 
-    return (data<<12) | checksum;
+    return ((uint32_t)data<<12) | checksum;
 }
 
 /**

@@ -15,6 +15,12 @@ clean:
 fclean:
 	rm -f $(TARGET)
 
+test:
+	$(CC) $(CFLAGS) ../tests/unit_tests.c -o ../tests/unit_tests -lm -lunity -lm17
+
+testrun:
+	./../tests/unit_tests
+
 install:
 	sudo install $(TARGET) /usr/local/lib
 
