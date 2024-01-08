@@ -1,4 +1,4 @@
-INC     = -I .
+INC     = -I ../include
 
 TARGET  = libm17.so
 
