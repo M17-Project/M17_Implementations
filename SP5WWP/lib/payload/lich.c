@@ -76,3 +76,18 @@ void extract_LICH(uint8_t outp[6], const uint8_t cnt, const struct LSF *inp)
 
     outp[5]=cnt<<5;
 }
+
+/**
+ * @brief Unpack LICH bytes.
+ * 
+ * @param out Unpacked, encoded LICH bits (array of at least 96 bytes).
+ * @param in 12-byte (96 bits) encoded LICH, packed.
+ */
+void unpack_LICH(uint8_t *out, const uint8_t in[12])
+{
+    for(uint8_t i=0; i<12; i++)
+    {
+        for(uint8_t j=0; j<8; j++)
+            out[i*8+j]=(in[i]>>(7-j))&1;
+    }
+}

@@ -72,14 +72,9 @@ int main(void)
             encode_LICH(lich_encoded, lich);
 
             //unpack LICH (12 bytes)
-            memset(enc_bits, 0, SYM_PER_PLD*2);
-            for(uint8_t i=0; i<12; i++)
-            {
-                for(uint8_t j=0; j<8; j++)
-                    enc_bits[i*8+j]=(lich_encoded[i]>>(7-j))&1;
-            }
+            unpack_LICH(enc_bits, lich_encoded);
 
-            //encode the rest of the frame
+            //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
             conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
 
             //reorder bits
@@ -119,9 +114,6 @@ int main(void)
         {
             got_lsf=1;
 
-            //encode LSF data
-            conv_encode_LSF(enc_bits, &lsf);
-
             //send out the preamble
             frame_buff_cnt=0;
 			send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
@@ -132,21 +124,14 @@ int main(void)
 			send_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
             fwrite((uint8_t*)frame_buff, SYM_PER_SWD*sizeof(float), 1, stdout);
 
+            //encode LSF data
+            conv_encode_LSF(enc_bits, &lsf);
+
             //reorder bits
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                rf_bits[i]=enc_bits[intrl_seq[i]];
+            reorder_bits(rf_bits, enc_bits);
 
             //randomize
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-            {
-                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-                {
-                    if(rf_bits[i])
-                        rf_bits[i]=0;
-                    else
-                        rf_bits[i]=1;
-                }
-            }
+            randomize_bits(rf_bits);
 
 			//send LSF data
             frame_buff_cnt=0;

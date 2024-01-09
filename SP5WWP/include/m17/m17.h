@@ -69,6 +69,7 @@ uint16_t LSF_CRC(const struct LSF *in);
 
 // M17 C library - lib/payload/lich.c
 void extract_LICH(uint8_t outp[6], const uint8_t cnt, const struct LSF *inp);
+void unpack_LICH(uint8_t *out, const uint8_t in[12]);
 
 // M17 C library - lib/math/golay.c
 extern const uint16_t encode_matrix[12];
