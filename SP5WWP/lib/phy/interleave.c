@@ -36,12 +36,24 @@ const uint16_t intrl_seq[SYM_PER_PLD*2]=
 };
 
 /**
- * @brief Reorder (interleave) unpacked payload bits.
+ * @brief Reorder (interleave) 368 unpacked payload bits.
  * 
  * @param outp Reordered, unpacked type-4 bits.
  * @param inp Input unpacked type-2/3 bits.
  */
 void reorder_bits(uint8_t outp[SYM_PER_PLD*2], const uint8_t inp[SYM_PER_PLD*2])
+{
+	for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+        outp[i]=inp[intrl_seq[i]];
+}
+
+/**
+ * @brief Reorder (interleave) 368 soft bits.
+ * 
+ * @param outp Reordered soft bits.
+ * @param inp Input soft bits.
+ */
+void reorder_soft_bits(uint16_t outp[SYM_PER_PLD*2], const uint16_t inp[SYM_PER_PLD*2])
 {
 	for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
         outp[i]=inp[intrl_seq[i]];

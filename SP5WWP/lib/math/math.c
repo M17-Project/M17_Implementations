@@ -154,6 +154,17 @@ uint16_t soft_bit_XOR(const uint16_t a, const uint16_t b)
 }
 
 /**
+ * @brief Soft logic NOT.
+ * 
+ * @param a Input A.
+ * @return uint16_t Output = not A.
+ */
+uint16_t soft_bit_NOT(const uint16_t a)
+{
+	return 0xFFFFU-a;
+}
+
+/**
  * @brief XOR for vectors of soft-valued logic.
  * Max length is 255.
  * @param out Output vector = A xor B.

@@ -84,6 +84,7 @@ void encode_LICH(uint8_t outp[12], const uint8_t inp[6]);
 extern const uint16_t intrl_seq[SYM_PER_PLD*2];
 
 void reorder_bits(uint8_t outp[SYM_PER_PLD*2], const uint8_t inp[SYM_PER_PLD*2]);
+void reorder_soft_bits(uint16_t outp[SYM_PER_PLD*2], const uint16_t inp[SYM_PER_PLD*2]);
 
 // M17 C library - lib/math/math.c
 uint16_t q_abs_diff(const uint16_t v1, const uint16_t v2);
@@ -93,6 +94,7 @@ uint16_t soft_to_int(const uint16_t* in, const uint8_t len);
 uint16_t div16(const uint16_t a, const uint16_t b);
 uint16_t mul16(const uint16_t a, const uint16_t b);
 uint16_t soft_bit_XOR(const uint16_t a, const uint16_t b);
+uint16_t soft_bit_NOT(const uint16_t a);
 void soft_XOR(uint16_t* out, const uint16_t* a, const uint16_t* b, const uint8_t len);
 
 // M17 C library - lib/phy/randomize.c

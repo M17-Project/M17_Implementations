@@ -121,15 +121,12 @@ int main(void)
                 //derandomize
                 for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
                 {
-                    if((rand_seq[i/8]>>(7-(i%8)))&1) //soft XOR. flip soft bit if "1"
-                        soft_bit[i]=0xFFFF-soft_bit[i];
+                    if((rand_seq[i/8]>>(7-(i%8)))&1) //soft NOT. flip soft bit if "1"
+                        soft_bit[i]=soft_bit_NOT(soft_bit[i]);
                 }
 
                 //deinterleave
-                for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                {
-                    d_soft_bit[i]=soft_bit[intrl_seq[i]];
-                }
+                reorder_soft_bits(d_soft_bit, soft_bit);
 
                 //if it is a frame
                 if(!fl)
