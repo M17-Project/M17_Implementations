@@ -1,5 +1,5 @@
 //--------------------------------------------------------------------
-// M17 C library - phy/randomize.h
+// M17 C library - phy/randomize.c
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 29 December 2023

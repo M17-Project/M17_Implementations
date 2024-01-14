@@ -104,6 +104,9 @@ extern const uint8_t rand_seq[46];
 
 void randomize_bits(uint8_t inp[SYM_PER_PLD*2]);
 
+// M17 C library - lib/phy/slice.c
+void slice_symbols(uint16_t out[2*SYM_PER_PLD], const float inp[SYM_PER_PLD]);
+
 // M17 C library - lib/math/rrc.c
 //sample RRC filter for 48kHz sample rate
 //alpha=0.5, span=8, sps=10, gain=sqrt(sps)

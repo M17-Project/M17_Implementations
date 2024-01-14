@@ -1,5 +1,5 @@
 //-------------------------------
-// M17 C library - phy/interleave.h
+// M17 C library - phy/interleave.c
 //
 // Wojciech Kaczmarski, SP5WWP
 // M17 Project, 28 December 2023

@@ -78,45 +78,8 @@ int main(void)
             if(pushed==SYM_PER_PLD)
             {
                 //common operations for all frame types
-                //decode symbols to soft dibits
-                for(uint8_t i=0; i<SYM_PER_PLD; i++)
-                {
-                    //bit 0
-                    if(pld[i]>=symbol_list[3])
-                    {
-                        soft_bit[i*2+1]=0xFFFF;
-                    }
-                    else if(pld[i]>=symbol_list[2])
-                    {
-                        soft_bit[i*2+1]=-(float)0xFFFF/(symbol_list[3]-symbol_list[2])*symbol_list[2]+pld[i]*(float)0xFFFF/(symbol_list[3]-symbol_list[2]);
-                    }
-                    else if(pld[i]>=symbol_list[1])
-                    {
-                        soft_bit[i*2+1]=0x0000;
-                    }
-                    else if(pld[i]>=symbol_list[0])
-                    {
-                        soft_bit[i*2+1]=(float)0xFFFF/(symbol_list[1]-symbol_list[0])*symbol_list[1]-pld[i]*(float)0xFFFF/(symbol_list[1]-symbol_list[0]);
-                    }
-                    else
-                    {
-                        soft_bit[i*2+1]=0xFFFF;
-                    }
-
-                    //bit 1
-                    if(pld[i]>=symbol_list[2])
-                    {
-                        soft_bit[i*2]=0x0000;
-                    }
-                    else if(pld[i]>=symbol_list[1])
-                    {
-                        soft_bit[i*2]=0x7FFF-pld[i]*(float)0xFFFF/(symbol_list[2]-symbol_list[1]);
-                    }
-                    else
-                    {
-                        soft_bit[i*2]=0xFFFF;
-                    }
-                }
+                //slice symbols to soft dibits
+                slice_symbols(soft_bit, pld);
 
                 //derandomize
                 for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
