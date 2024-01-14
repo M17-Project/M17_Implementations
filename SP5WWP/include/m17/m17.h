@@ -103,6 +103,7 @@ void soft_XOR(uint16_t* out, const uint16_t* a, const uint16_t* b, const uint8_t
 extern const uint8_t rand_seq[46];
 
 void randomize_bits(uint8_t inp[SYM_PER_PLD*2]);
+void randomize_soft_bits(uint16_t inp[SYM_PER_PLD*2]);
 
 // M17 C library - lib/phy/slice.c
 void slice_symbols(uint16_t out[2*SYM_PER_PLD], const float inp[SYM_PER_PLD]);

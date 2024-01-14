@@ -31,3 +31,19 @@ void randomize_bits(uint8_t inp[SYM_PER_PLD*2])
         }
     }
 }
+
+/**
+ * @brief Randomize type-4 unpacked bits.
+ * 
+ * @param inp Input 368 soft type-4 bits.
+ */
+void randomize_soft_bits(uint16_t inp[SYM_PER_PLD*2])
+{
+    for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
+    {
+        if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
+        {
+            inp[i]=soft_bit_NOT(inp[i]);
+        }
+    }
+}

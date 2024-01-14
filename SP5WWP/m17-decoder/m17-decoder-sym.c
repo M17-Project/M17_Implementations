@@ -82,11 +82,7 @@ int main(void)
                 slice_symbols(soft_bit, pld);
 
                 //derandomize
-                for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                {
-                    if((rand_seq[i/8]>>(7-(i%8)))&1) //soft NOT. flip soft bit if "1"
-                        soft_bit[i]=soft_bit_NOT(soft_bit[i]);
-                }
+                randomize_soft_bits(soft_bit);
 
                 //deinterleave
                 reorder_soft_bits(d_soft_bit, soft_bit);
