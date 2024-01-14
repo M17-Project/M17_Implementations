@@ -33,7 +33,7 @@ void randomize_bits(uint8_t inp[SYM_PER_PLD*2])
 }
 
 /**
- * @brief Randomize type-4 unpacked bits.
+ * @brief Randomize type-4 soft bits.
  * 
  * @param inp Input 368 soft type-4 bits.
  */
