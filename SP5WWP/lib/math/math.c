@@ -41,7 +41,7 @@ float eucl_norm(const float* in1, const int8_t* in2, const uint8_t n)
 
     for(uint8_t i=0; i<n; i++)
     {
-        tmp += powf(in1[i]-(float)in2[i], 2.0f);
+        tmp += (in1[i]-(float)in2[i])*(in1[i]-(float)in2[i]);
     }
 
     return sqrtf(tmp);
