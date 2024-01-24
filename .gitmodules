@@ -1,0 +1,3 @@
+[submodule "libm17"]
+	path = libm17
+	url = https://github.com/M17-Project/libm17

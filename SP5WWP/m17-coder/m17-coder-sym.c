@@ -4,7 +4,7 @@
 #include <string.h>
 
 //libm17
-#include <m17/m17.h>
+#include <m17.h>
 
 //#define FN60_DEBUG
 

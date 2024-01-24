@@ -4,7 +4,7 @@
 #include <string.h>
 
 //libm17
-#include <m17/m17.h>
+#include <m17.h>
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords

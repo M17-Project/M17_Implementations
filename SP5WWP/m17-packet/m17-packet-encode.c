@@ -5,7 +5,7 @@
 #include <math.h>
 
 //libm17
-#include <m17/m17.h>
+#include <m17.h>
 
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
 
