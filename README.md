@@ -17,6 +17,8 @@ First, build the shared object `libm17.so`:
 ```
 cd M17_Implementations/libm17
 make
+make install
+sudo ldconfig
 ```
 Then, `cd` back up to the directory of interest and ```make``` again.
 
