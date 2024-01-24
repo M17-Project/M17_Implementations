@@ -15,10 +15,10 @@ There's no support for **any** encryption yet.
 ### Building
 First, build the shared object `libm17.so`:
 ```
-cd M17_Implementations/SP5WWP/lib
+cd M17_Implementations/libm17
 make
 ```
-Then, `cd` to the directory of interest and ```make``` again.
+Then, `cd` back up to the directory of interest and ```make``` again.
 
 ### Capabilities
 Four executables are available:
