@@ -6,6 +6,8 @@
 //libm17
 #include <m17.h>
 
+#define DIST_THRESH					2.0f //distance threshold for the L2 metric (for syncword detection)
+
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
 float dist;                         //Euclidean distance for finding syncwords in the symbol stream
