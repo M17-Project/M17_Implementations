@@ -1,7 +1,7 @@
 #!/bin/bash -x
 
 # This script ASSUMEs:
-# - you're running this from the 'testing' dir under the 'SP5WWP' dir
+# - you're running this from the 'tests' dir under the 'SP5WWP' dir
 # - you have made the ../m17-coder/m17-coder-sym coder program
 # - you have made the ../m17-decoder/m17-decoder-sym coder program
 # - you have loaded the ./grc/m17_streamer.grc program into gnuradio-companion
