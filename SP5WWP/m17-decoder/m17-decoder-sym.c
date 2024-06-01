@@ -8,6 +8,7 @@
 
 #define DECODE_CALLSIGNS
 #define SHOW_VITERBI_ERRS
+#define DIST_THRESH					2.0f //distance threshold for the L2 metric (for syncword detection)
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
