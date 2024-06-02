@@ -37,29 +37,27 @@ with the `-n` parameter, range 1 to 800.
 ### Testing
 #### Stream mode
 Both the encoder and the decoder can be tested simultaneously. The test setup should look as follows:<br>
-`GRC flowgraph -> fifo1 -> m17-coder-sym -> fifo2 -> m17-decoder-sym -> stdout`<br>
+`GRC flowgraph -> /tmp/fifo1 -> m17-coder-sym -> /tmp/fifo2 -> m17-decoder-sym -> stdout`<br>
 To perform a simple test, GNURadio 3.10 is required.
 
 Run the following commands:
 ```
-mkfifo fifo1
-mkfifo fifo2
+mkfifo /tmp/fifo1
+mkfifo /tmp/fifo2
 ```
 This should create 2 named pipes: `fifo1` and `fifo2`. The first one is used for the "transmitted" raw
 bitstream from GNURadio. The other one is used for the "receiver" part - the symbol stream.
 
-Start gnuradio-companion, open the .grc file included in this repo (`/grc/m17_streamer.grc`) and change
-the name of the named pipe to `fifo1` (at the *File Sink* block - the rightmost one). Change the location of it
-if needed.
+Start gnuradio-companion, open the .grc file included in this repo (`/grc/m17_streamer.grc`).
 
 Open up 2 terminals and run:<br>
 Terminal 1:
 ```
-cat fifo1 | ./m17-coder-sym > fifo2
+cat /tmp/fifo1 | ./m17-coder-sym > /tmp/fifo2
 ```
 Terminal 2:
 ```
-cat fifo2 | ./m17-decoder-sym
+cat /tmp/fifo2 | ./m17-decoder-sym
 ```
 
 Hit the *Execute the flow graph* button in GNURadio and watch it roll.
