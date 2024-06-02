@@ -40,7 +40,7 @@ blocks:
     alias: ''
     append: 'True'
     comment: ''
-    file: ../stream_fifo
+    file: /tmp/fifo1
     type: byte
     unbuffered: 'False'
     vlen: '1'
