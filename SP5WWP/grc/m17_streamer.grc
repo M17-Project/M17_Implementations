@@ -38,7 +38,7 @@ blocks:
   parameters:
     affinity: ''
     alias: ''
-    append: 'False'
+    append: 'True'
     comment: ''
     file: ../stream_fifo
     type: byte
@@ -268,4 +268,3 @@ connections:
 
 metadata:
   file_format: 1
-  grc_version: 3.10.4.0

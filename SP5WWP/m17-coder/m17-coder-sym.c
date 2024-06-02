@@ -89,7 +89,6 @@ int main(void)
                 fwrite((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
 			//send frame data
-            frame_buff_cnt=0;
 			send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
