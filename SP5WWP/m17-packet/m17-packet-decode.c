@@ -194,7 +194,7 @@ int main(int argc, char* argv[])
                     }
                     else if(rx_last)
                     {
-                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn);
+                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn+2); //+2 to include crc
 
                         //dump data
                         if(packet_data[0]==0x05) //if a text message
@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
                             {
                                 uint16_t p_len=strlen((const char*)packet_data);
                                 uint16_t p_crc=CRC_M17(packet_data, p_len+1);
-                                //fprintf(stderr, "rx=%02X%02X calc=%04X", packet_data[p_len+1], packet_data[p_len+2], p_crc);
+                                // fprintf(stderr, "p_len: %d; rx=%02X%02X; calc=%04X;\n", p_len, packet_data[p_len+1], packet_data[p_len+2], p_crc);
                                 if(p_crc==(uint16_t)packet_data[p_len+1]*256+(uint16_t)packet_data[p_len+2])
                                 {
                                     fprintf(stderr, "%s\n", &packet_data[1]);

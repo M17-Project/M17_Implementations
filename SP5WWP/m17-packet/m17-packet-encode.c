@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <math.h>
+#include <sndfile.h>
 
 //libm17
 #include <m17.h>
@@ -10,6 +11,12 @@
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
 
 struct LSF lsf;
+
+short empty[960*50];                                        //empty short samples to write to wav file as 'dead air'
+char wav_name[1024];                                        //name of wav file to output to
+SNDFILE *wav;                                               //sndfile wav file
+SF_INFO info;                                               //sndfile parameter struct
+int len=3;                                                  //number of blocks produced via counter +3 for pre,lsf, and eot marker
 
 uint8_t enc_bits[SYM_PER_PLD*2];                            //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpacked
@@ -21,7 +28,7 @@ uint16_t num_bytes=0;                                       //number of bytes in
 uint8_t fname[128]={'\0'};                                  //output file
 
 FILE* fp;
-float full_packet[6912+88];                                 //full packet, symbols as floats - (40+40+32*40+40+40)/1000*4800
+float full_packet[1920*37];                                 //full packet, samples as floats - (40+40+32*40+40+40)/1000*4800
                                                             //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
 uint16_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
 uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
@@ -30,6 +37,9 @@ uint8_t full_packet_data[32*25];                            //full packet data, 
 uint8_t out_type=0;                                         //output file type - 0 - raw int16 filtered samples (.rrc) - default
                                                             //                   1 - int16 symbol stream
                                                             //                   2 - binary stream (TODO)
+                                                            //                   3 - simple 10x upsample no filter
+                                                            //                   4 - SB16-LE RRC filtered wav file
+                                                            //                   5 - float symbol output for m17-packet-decode
 
 //type - 0 - preamble before LSF (standard)
 //type - 1 - preamble before BERT transmission
@@ -152,6 +162,18 @@ int main(int argc, char* argv[])
                 {
                     out_type=2;
                 }
+                else if(argv[i][1]=='d') //-d - raw unfiltered output to wav file
+                {
+                    out_type=3;
+                }
+                else if(argv[i][1]=='w') //-w - raw filtered output to wav file (rrc)
+                {
+                    out_type=4;
+                }
+                else if(argv[i][1]=='f') //-f - float symbol output
+                {
+                    out_type=5;
+                }
                 else
                 {
                     fprintf(stderr, "Unknown param detected. Exiting...\n");
@@ -172,6 +194,9 @@ int main(int argc, char* argv[])
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
         fprintf(stderr, "-r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
         fprintf(stderr, "-s - signed 16-bit LE symbols output\n");
+        fprintf(stderr, "-f - float symbols output compatible with m17-packet-decode\n");
+        fprintf(stderr, "-d - raw audio output - same as -r, but no RRC filtering (debug)\n");
+        fprintf(stderr, "-w - libsndfile audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
         return -1;
     }
 
@@ -199,6 +224,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Packet data too short. Exiting...\n");
         return -1;
     }
+    num_bytes++; //increment by one to include the terminating byte
     uint16_t packet_crc=CRC_M17(full_packet_data, num_bytes);
     full_packet_data[num_bytes]  =packet_crc>>8;
     full_packet_data[num_bytes+1]=packet_crc&0xFF;
@@ -231,13 +257,13 @@ int main(int argc, char* argv[])
     uint16_t lsf_crc=LSF_CRC(&lsf);
     lsf.crc[0]=lsf_crc>>8;
     lsf.crc[1]=lsf_crc&0xFF;
-    fprintf(stderr, "LSF CRC:\t%04hX\n", lsf_crc);
+    fprintf(stderr, "LSF  CRC:\t%04hX\n", lsf_crc);
 
     //encode LSF data
     conv_encode_LSF(enc_bits, &lsf);
 
     //fill preamble
-    memset((uint8_t*)full_packet, 0, sizeof(float)*(6912+88));
+    memset((uint8_t*)full_packet, 0.0f, 1920*37*sizeof(float));
     fill_preamble(full_packet, 0);
     pkt_sym_cnt=SYM_PER_FRA;
 
@@ -300,11 +326,22 @@ int main(int argc, char* argv[])
             fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes-=25;
+            len++;
         }
         else
         {
+            //debug num_bytes here
+            // fprintf (stderr, " Last num: %d; ", num_bytes);
+
             memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], num_bytes);
             memset(&pkt_chunk[num_bytes], 0, 25-num_bytes); //zero-padding
+
+            //subtract 2 for the CRC? or does the CRC count as significant bytes of the last block
+            num_bytes -= 2;
+
+            //debug num_bytes here
+            // fprintf (stderr, " Last num: %d; ", num_bytes);
+
             pkt_chunk[25]=(1<<7)|(((num_bytes%25==0)?25:num_bytes%25)<<2); //EOT bit set to 1, set counter to the amount of bytes in this (the last) frame
 
             fprintf(stderr, "FN:-- (ending frame)\n");
@@ -332,27 +369,52 @@ int main(int argc, char* argv[])
             fill_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes=0;
+            len++;
         }
 
         //debug dump
-        //for(uint8_t i=0; i<26; i++)
-            //fprintf(stderr, "%02X", pkt_chunk[i]);
-        //fprintf(stderr, "\n");
+        for(uint8_t i=0; i<26; i++)
+            fprintf(stderr, "%02X", pkt_chunk[i]);
+        fprintf(stderr, "\n");
 
         pkt_cnt++;
     }
 
     num_bytes=tmp; //bring back the num_bytes value
 
-    //fprintf(stderr, "DATA: %s\n", full_packet_data);
+    fprintf (stderr, "FULL: ");
+    for(uint8_t i=0; i<tmp; i++)
+    {
+        fprintf (stderr, "%02X", full_packet_data[i]);
+    }
+    fprintf(stderr, "\n");
+
+    fprintf(stderr, " SMS: %s\n", full_packet_data);
 
     //send EOT
     for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
         fill_syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
 
-    //dump baseband to a file
-    fp=fopen((const char*)fname, "wb");
 
+    if (out_type == 3 || out_type == 4) //open wav file out
+    {
+        sprintf (wav_name, "%s", fname);
+        info.samplerate = 48000;
+        info.channels = 1;
+        info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16 | SF_ENDIAN_LITTLE;
+        wav = sf_open (wav_name, SFM_WRITE, &info); //write only, no append
+        if (wav == NULL)
+        {
+            fprintf (stderr,"Error - could not open raw wav output file %s\n", wav_name);
+            return -1;
+        }
+    }
+    else //dump baseband to a file
+        fp=fopen((const char*)fname, "wb");
+
+    //initialize 'dead air' empty array as all zeroes
+    memset (empty, 0, 960*50*sizeof(short));
+    
     //debug mode - symbols multiplied by 7168 scaling factor
     /*for(uint16_t i=0; i<pkt_sym_cnt; i++)
     {
@@ -363,6 +425,10 @@ int main(int argc, char* argv[])
     //standard mode - filtered baseband
     if(out_type==0)
     {
+        //flush output file with ~1 second of empty 'dead air', helps with demodulation / decoding later on
+        for (uint16_t i=0; i<960*50; i++)
+            fwrite((uint8_t*)&empty[i], 2, 1, fp);
+
         float mem[FLT_LEN];
         float mac=0.0f;
         memset((uint8_t*)mem, 0, FLT_LEN*sizeof(float));
@@ -392,6 +458,7 @@ int main(int argc, char* argv[])
             }
         }
     }
+
     //standard mode - int16 symbol stream
     else if(out_type==1)
     {
@@ -402,7 +469,91 @@ int main(int argc, char* argv[])
         }
     }
 
-    fclose(fp);
+    //float symbol stream compatible with m17-packet-decode
+    else if(out_type==5)
+    {
+        for(uint16_t i=0; i<pkt_sym_cnt; i++)
+        {
+            float val=full_packet[i];
+            fwrite(&val, 4, 1, fp);
+        }
+    }
+  
+    //simple 10x upsample * 7168.0f
+    else if (out_type == 3)
+    {   
+        //flush output file with ~1 second of empty 'dead air', helps with demodulation / decoding later on
+        sf_write_short(wav, empty, 960*50);
+
+        //array of upsample full_packet
+        float up[1920*35]; memset (up, 0, 1920*35*sizeof(float));
+
+        //10x upsample from full_packet to up
+        for (int i = 0; i < 192*len; i++)
+        {
+            for (int j = 0; j < 10; j++)
+                up[(i*10)+j] = full_packet[i];
+        }
+
+        //array of shorts for sndfile wav output
+        short bb[1920*35]; memset (bb, 0, 1920*35*sizeof(short));
+
+        //write dead air to sndfile wav
+        sf_write_short(wav, bb, 1920);
+
+        //load bb with upsample, use len to see how many we need to send
+        for (int i = 0; i < 1920*len; i++)
+            bb[i] = (short)(up[i] * 7168.0f);
+
+        //write to sndfile wav
+        sf_write_short(wav, bb, 1920*len);
+    }
+
+    //standard mode - filtered baseband (converted to wav)
+    else if(out_type == 4)
+    {
+        //flush output file with ~1 second of empty 'dead air', helps with demodulation / decoding later on
+        sf_write_short(wav, empty, 960*50);
+
+        float mem[FLT_LEN];
+        float mac=0.0f;
+        memset((uint8_t*)mem, 0, FLT_LEN*sizeof(float));
+        for(uint16_t i=0; i<pkt_sym_cnt; i++)
+        {
+            //push new sample
+            mem[0]=full_packet[i]*RRC_DEV;
+
+            for(uint8_t j=0; j<10; j++)
+            {
+                mac=0.0f;
+
+                //calc the sum of products
+                for(uint16_t k=0; k<FLT_LEN; k++)
+                    mac+=mem[k]*rrc_taps_10[k]*sqrtf(10.0); //temporary fix for the interpolation gain error
+
+                //shift the delay line right by 1
+                for(int16_t k=FLT_LEN-1; k>0; k--)
+                {
+                    mem[k]=mem[k-1];
+                }
+                mem[0]=0.0f;
+
+                //write to file
+                short tmp[2]; tmp[0]=mac;
+                // fwrite((uint8_t*)&tmp, 2, 1, fp);
+                sf_write_short(wav, tmp, 1);
+            }
+        }
+    }
+
+    //close file, depending on type opened
+    if (out_type == 3 || out_type == 4)
+    {
+        sf_write_sync(wav);
+        sf_close(wav);
+    }
+    else fclose(fp);
+    
 
 	return 0;
 }
