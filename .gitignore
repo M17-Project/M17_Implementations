@@ -5,3 +5,8 @@
 /SP5WWP/m17-packet/m17-packet-decode
 /SP5WWP/.vscode
 *.json
+*.rrc
+*.wav
+*.bin
+*.sym
+*.patch
