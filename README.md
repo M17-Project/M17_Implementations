@@ -122,7 +122,7 @@ Testing M17 packet mode.
 
 Encode directly as wav format (skip sox):
 
-`echo -en "\x05Testing M17 packet mode." | ./m17-packet-encode -S N0CALL -D AB1CDE -C 7 -n 25 -w -o baseband.wav`
+`echo -en "\x05Testing M17 packet mode.\x00" | ./m17-packet-encode -S N0CALL -D AB1CDE -C 7 -n 26 -w -o baseband.wav`
 
 Output:
 

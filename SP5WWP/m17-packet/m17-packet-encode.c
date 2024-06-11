@@ -37,7 +37,7 @@ uint8_t out_type=0;                                         //output file type -
                                                             //                   1 - int16 symbol stream
                                                             //                   2 - binary stream (TODO)
                                                             //                   3 - simple 10x upsample no filter
-                                                            //                   4 - SB16-LE RRC filtered wav file
+                                                            //                   4 - S16-LE RRC filtered wav file
                                                             //                   5 - float symbol output for m17-packet-decode
 
 //type - 0 - preamble before LSF (standard)
@@ -223,7 +223,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Packet data too short. Exiting...\n");
         return -1;
     }
-    num_bytes++; //increment by one to include the terminating byte
+    
     uint16_t packet_crc=CRC_M17(full_packet_data, num_bytes);
     full_packet_data[num_bytes]  =packet_crc>>8;
     full_packet_data[num_bytes+1]=packet_crc&0xFF;
@@ -262,7 +262,7 @@ int main(int argc, char* argv[])
     conv_encode_LSF(enc_bits, &lsf);
 
     //fill preamble
-    memset((uint8_t*)full_packet, 0.0f, 36*192*10*sizeof(float));
+    memset((uint8_t*)full_packet, 0, 36*192*10*sizeof(float));
     fill_preamble(full_packet, 0);
     pkt_sym_cnt=SYM_PER_FRA;
 
