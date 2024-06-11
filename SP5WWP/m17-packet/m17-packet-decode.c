@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
                             {
                                 uint16_t p_len=strlen((const char*)packet_data);
                                 uint16_t p_crc=CRC_M17(packet_data, p_len+1);
-                                //fprintf(stderr, "rx=%02X%02X calc=%04X", packet_data[p_len+1], packet_data[p_len+2], p_crc);
+                                fprintf(stderr, "Data CRC: rx=%02X%02X calc=%04X\n ", packet_data[p_len+1], packet_data[p_len+2], p_crc);
                                 if(p_crc==(uint16_t)packet_data[p_len+1]*256+(uint16_t)packet_data[p_len+2])
                                 {
                                     fprintf(stderr, "%s\n", &packet_data[1]);
