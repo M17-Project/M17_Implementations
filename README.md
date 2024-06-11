@@ -89,7 +89,7 @@ Packet encoding is available with `m17-packet-encoder`. Its input parameters are
 
 Input data is passed over stdin. Example command:
 
-`echo -en "\x05Testing M17 packet mode." | ./m17-packet-encode -S N0CALL -D ALL -C 0 -n 25 -f -o baseband.sym`
+`echo -en "\x05Testing M17 packet mode.\x00" | ./m17-packet-encode -S N0CALL -D ALL -C 0 -n 26 -f -o baseband.sym`
 
 `-en` parameter for `echo` suppresses the trailing newline character and enables the use of `\` within the message.
 `\x05` sets the packet data content and stands for text message (as per M17 Specification document, chapter 3.2 - Packet Application).
