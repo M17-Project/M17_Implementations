@@ -2,9 +2,12 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 //libm17
 #include <m17.h>
+//tiny-AES-c
+#include "../../tiny-AES-c/aes.h"
 
 //#define FN60_DEBUG
 
@@ -24,18 +27,45 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
+//encryption
+uint8_t encryption=0;
+struct AES_ctx ctx;
+uint8_t key[AES_KEYLEN]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
+uint8_t iv[AES_BLOCKLEN];
+time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
+
 //main routine
-int main(void)
+int main(int argc, char* argv[])
 {
     //debug
     //printf("%06X\n", golay24_encode(1)); //golay encoder codeword test
     //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
     //return 0;
 
+    //encryption init
+    if(argc>2 && strstr(argv[1], "-K"))
+        encryption=2; //AES key was passed
+
+    if(encryption==2)
+    {
+        //TODO: read key
+        AES_init_ctx(&ctx, key);
+        *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
+        for(uint8_t i=4; i<4+10; i++) iv[i]=0; //10 random bytes TODO: replace with a rand() or pass through an additional arg
+    }
+
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+    if(encryption==0)
+    {
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+    }
+    else
+    {
+        memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+        finished=1;
+    }
     if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
     while(!finished)
@@ -56,7 +86,15 @@ int main(void)
         if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+        if(encryption==0)
+        {
+            if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+        }
+        else
+        {
+            memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+            finished=1;
+        }
         if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
         if(got_lsf) //stream frames
@@ -73,6 +111,14 @@ int main(void)
 
             //unpack LICH (12 bytes)
             unpack_LICH(enc_bits, lich_encoded);
+
+            //encrypt
+            if(encryption==2)
+            {
+                *((uint16_t*)&iv[14])=fn;
+                AES_ctx_set_iv(&ctx, iv); //re-init IV (update FN)
+                AES_CTR_xcrypt_buffer(&ctx, data, AES_BLOCKLEN);
+            }
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
             conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
