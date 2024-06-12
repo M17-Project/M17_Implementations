@@ -207,10 +207,10 @@ int main(int argc, char* argv[])
                             {
                                 uint16_t p_len=strlen((const char*)packet_data);
                                 uint16_t p_crc=CRC_M17(packet_data, p_len+1);
-                                fprintf(stderr, "Data CRC: rx=%02X%02X calc=%04X\n ", packet_data[p_len+1], packet_data[p_len+2], p_crc);
+                                fprintf(stderr, "Data CRC: rx=%02X%02X calc=%04X\n", packet_data[p_len+1], packet_data[p_len+2], p_crc);
                                 if(p_crc==(uint16_t)packet_data[p_len+1]*256+(uint16_t)packet_data[p_len+2])
                                 {
-                                    fprintf(stderr, "%s\n", &packet_data[1]);
+                                    fprintf(stderr, "SMS: %s\n", &packet_data[1]);
                                 }
                             }
                         }
@@ -218,10 +218,12 @@ int main(int argc, char* argv[])
                         {
                             if(!text_only)
                             {
-                                fprintf(stderr, "PKT: ");
-                                for(uint16_t i=0; i<last_fn*25+rx_fn; i++)
+                                fprintf(stderr, "PKT:");
+                                for(uint16_t i=0; i<(last_fn+1)*25+rx_fn; i++)
                                 {
-                                    fprintf(stderr, "%02X", packet_data[i]);
+                                    if ( (i != 0) && ((i%25) == 0) )
+                                        fprintf(stderr, "\n    ");
+                                    fprintf(stderr, " %02X", packet_data[i]);
                                 }
                                 fprintf(stderr, "\n");
                             }
