@@ -398,7 +398,10 @@ int main(int argc, char* argv[])
         //send packet frame syncword
         fill_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
 
-        if(num_bytes>=25)
+        //the following examples produce exactly 25 bytes, which exactly one frame, but >= meant this would never produce a final frame with EOT bit set
+        //echo -en "\x05Testing M17 packet mo\x00" | ./m17-packet-encode -S N0CALL -D ALL -C 10 -n 23 -o float.sym -f
+        //./m17-packet-encode -S N0CALL -D ALL -C 10 -o float.sym -f -T 'this is a simple text'
+        if(num_bytes>25) //fix for frames that, with terminating byte and crc, land exactly on 25 bytes (or %25==0)
         {
             memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], 25);
             pkt_chunk[25]=pkt_cnt<<2;
