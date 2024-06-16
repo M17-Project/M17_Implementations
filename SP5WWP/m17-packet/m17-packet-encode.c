@@ -40,6 +40,14 @@ uint8_t out_type=0;                                         //output file type -
                                                             //                   4 - S16-LE RRC filtered wav file
                                                             //                   5 - float symbol output for m17-packet-decode
 
+
+uint8_t std_encode = 1;                                     //User Data is pre-encoded and read in over stdin, and not a switch string
+uint8_t sms_encode = 0;                                     //User Supplied Data is an SMS Text message, encode as such
+uint8_t raw_encode = 0;                                     //User Supplied Data is a string of hex octets, encode as such
+
+char   text[800] = "Default SMS Text message";              //SMS Text to Encode, default string.
+uint8_t raw[800];                                           //raw data that is converted from a string comprised of hex octets
+
 //type - 0 - preamble before LSF (standard)
 //type - 1 - preamble before BERT transmission
 void fill_preamble(float* out, const uint8_t type)
@@ -87,12 +95,57 @@ void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
 	}
 }
 
+//convert a user string (as hex octets) into a uint8_t array for raw packet encoding
+void parse_raw_user_string (char * input)
+{
+    //since we want this as octets, get strlen value, then divide by two
+    uint16_t len = strlen((const char*)input);
+
+    //if zero is returned, just do two
+    if (len == 0) len = 2;
+
+    //if odd number, then user didn't pass complete octets, but just add one to len value to make it even
+    if (len&1) len++;
+
+    //divide by two to get octet len
+    len /= 2;
+
+    //sanity check, maximum strlen should not exceed 798 for a full encode
+    if (len > 797) len = 797;
+
+    //set num_bytes to len + 1
+    num_bytes = len + 0; //doing 0 instead, let user pass an extra 00 on the end if they want it there
+
+    char octet_char[3];
+    octet_char[2] = 0;
+    uint16_t k = 0;
+    uint16_t i = 0;
+
+    //debug
+    fprintf (stderr, "\nRaw Len: %d; Raw Octets:", len);
+
+    for (i = 0; i < len; i++)
+    {
+        strncpy (octet_char, input+k, 2);
+        octet_char[2] = 0;
+        sscanf (octet_char, "%hhX", &raw[i]);
+
+        //debug
+        // fprintf (stderr, " (%s)", octet_char);
+        fprintf (stderr, " %02X", raw[i]);
+
+        k += 2;
+    }
+
+    fprintf (stderr, "\n");
+}
+
 //main routine
 int main(int argc, char* argv[])
 {
     //scan command line options for input data
-    //TODO: support for strings with spaces, the code below is NOT foolproof!
-    //the user has to provide a minimum of 2 parameters: number of bytes and output filename
+    //WIP: support for text strings with spaces and raw hex octet strings (still NOT foolproof)
+    //the user has to provide a minimum of 2 parameters: input string or num_bytes, output type, and output filename
     if(argc>=4)
     {
         for(uint8_t i=1; i<argc; i++)
@@ -137,6 +190,28 @@ int main(int argc, char* argv[])
                     {
                         fprintf(stderr, "Number of bytes 0 or exceeding the maximum of 798. Exiting...\n");
                         return -1;
+                    }
+                }
+                else if(argv[i][1]=='T') //-T - User Text String
+                {
+                    if(strlen(&argv[i+1][0])>0)
+                    {
+                        memset(text, 0, 800*sizeof(char));
+                        memcpy(text, &argv[i+1][0], strlen(argv[i+1]));
+                        std_encode = 0;
+                        sms_encode = 1;
+                        raw_encode = 0;
+                    }
+                }
+                else if(argv[i][1]=='R') //-R - Raw Octets
+                {
+                    if(strlen(&argv[i+1][0])>0)
+                    {
+                        memset (raw, 0, sizeof(raw));
+                        parse_raw_user_string (argv[i+1]);
+                        std_encode = 0;
+                        sms_encode = 0;
+                        raw_encode = 1;
                     }
                 }
                 else if(argv[i][1]=='o') //-o - output filename
@@ -187,7 +262,9 @@ int main(int argc, char* argv[])
         fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
         fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for broadcast,\n");
         fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
-        fprintf(stderr, "-n - number of bytes (1 to 798),\n");
+        fprintf(stderr, "-T - SMS Text Message (example: -T 'Hello World! This is a text message'),\n");
+        fprintf(stderr, "-R - Raw Hex Octets   (example: -R 010203040506070809),\n");
+        fprintf(stderr, "-n - number of bytes, only when pre-encoded data passed over stdin (1 to 798),\n");
         fprintf(stderr, "-o - output file path/name,\n");
         fprintf(stderr, "Output formats:\n");
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
@@ -199,13 +276,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    //assert number of bytes and filename
-    if(num_bytes==0)
-    {
-        fprintf(stderr, "Number of bytes not set. Exiting...\n");
-        return -1;
-    }
-    else if(strlen((const char*)fname)==0)
+    //assert filename and not binary output
+    if(strlen((const char*)fname)==0)
     {
         fprintf(stderr, "Filename not specified. Exiting...\n");
         return -1;
@@ -218,12 +290,43 @@ int main(int argc, char* argv[])
 
     //obtain data and append with CRC
     memset(full_packet_data, 0, 32*25);
-    if(fread(full_packet_data, num_bytes, 1, stdin)<1)
+
+    //SMS Encode (-T) ./m17-packet-encode -f -o float.sym -T 'This is a simple SMS text message sent over M17 Packet Data.'
+    if (sms_encode == 1)
     {
-        fprintf(stderr, "Packet data too short. Exiting...\n");
-        return -1;
+        num_bytes = strlen((const char*)text); //No need to check for zero return, since the default text string is supplied
+        if (num_bytes > 796) num_bytes = 796; //not 798 because we have to manually add the 0x05 protocol byte and 0x00 terminator
+        full_packet_data[0] = 0x05; //SMS Protocol
+        memcpy (full_packet_data+1, text, num_bytes);
+        num_bytes+= 2; //add one for terminating byte and 1 for strlen fix
+        fprintf (stderr, "SMS: %s\n", full_packet_data+1);
     }
-    
+
+    //RAW Encode (-R) ./m17-packet-encode -f -o float.sym -R 5B69001E135152397C0A0000005A45
+    else if (raw_encode == 1)
+    {
+        memcpy (full_packet_data, raw, num_bytes);
+    }
+
+    //Old Method pre-encoded data over stdin // echo -en "\x05Testing M17 packet mode.\x00" | ./m17-packet-encode -S N0CALL -D AB1CDE -C 7 -n 26 -f -o float.sym
+    else if (std_encode == 1)
+    {
+        //assert number of bytes
+        if(num_bytes==0)
+        {
+            fprintf(stderr, "Number of bytes not set. Exiting...\n");
+            return -1;
+        }
+
+        if(fread(full_packet_data, num_bytes, 1, stdin)<1)
+        {
+            fprintf(stderr, "Packet data too short. Exiting...\n");
+            return -1;
+        }
+        fprintf(stderr, "SMS: %s\n", full_packet_data+1);
+        //
+    }
+
     uint16_t packet_crc=CRC_M17(full_packet_data, num_bytes);
     full_packet_data[num_bytes]  =packet_crc>>8;
     full_packet_data[num_bytes+1]=packet_crc&0xFF;
@@ -244,8 +347,7 @@ int main(int argc, char* argv[])
     #else
     fprintf(stderr, "DST: %s\t%012lX\nSRC: %s\t%012lX\n", dst_raw, dst_encoded, src_raw, src_encoded);
     #endif
-    //fprintf(stderr, "DST: %02X %02X %02X %02X %02X %02X\n", lsf.dst[0], lsf.dst[1], lsf.dst[2], lsf.dst[3], lsf.dst[4], lsf.dst[5]);
-    //fprintf(stderr, "SRC: %02X %02X %02X %02X %02X %02X\n", lsf.src[0], lsf.src[1], lsf.src[2], lsf.src[3], lsf.src[4], lsf.src[5]);
+    fprintf(stderr, "CAN: %02d\n", can);
     fprintf(stderr, "Data CRC:\t%04hX\n", packet_crc);
     type=((uint16_t)0x01<<1)|((uint16_t)can<<7); //packet mode, content: data
     lsf.type[0]=(uint16_t)type>>8;
@@ -296,7 +398,10 @@ int main(int argc, char* argv[])
         //send packet frame syncword
         fill_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
 
-        if(num_bytes>=25)
+        //the following examples produce exactly 25 bytes, which exactly one frame, but >= meant this would never produce a final frame with EOT bit set
+        //echo -en "\x05Testing M17 packet mo\x00" | ./m17-packet-encode -S N0CALL -D ALL -C 10 -n 23 -o float.sym -f
+        //./m17-packet-encode -S N0CALL -D ALL -C 10 -o float.sym -f -T 'this is a simple text'
+        if(num_bytes>25) //fix for frames that, with terminating byte and crc, land exactly on 25 bytes (or %25==0)
         {
             memcpy(pkt_chunk, &full_packet_data[pkt_cnt*25], 25);
             pkt_chunk[25]=pkt_cnt<<2;
@@ -368,15 +473,15 @@ int main(int argc, char* argv[])
     }
 
     num_bytes=tmp; //bring back the num_bytes value
-
-    fprintf (stderr, "FULL: ");
-    for(uint8_t i=0; i<tmp; i++)
+    fprintf (stderr, "PKT:");
+    for(uint8_t i=0; i<pkt_cnt*25; i++)
     {
-        fprintf (stderr, "%02X", full_packet_data[i]);
+        if ( (i != 0) && ((i%25) == 0) )
+            fprintf (stderr, "\n    ");
+
+        fprintf (stderr, " %02X", full_packet_data[i]);
     }
     fprintf(stderr, "\n");
-
-    fprintf(stderr, " SMS: %s\n", full_packet_data);
 
     //send EOT
     for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
