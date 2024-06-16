@@ -6,8 +6,8 @@
 
 //libm17
 #include <m17.h>
-//tiny-AES-c
-#include "../../tiny-AES-c/aes.h"
+//tinier-aes
+#include "../../tinier-aes/aes.c"
 
 //#define FN60_DEBUG
 
@@ -29,9 +29,9 @@ uint8_t finished=0;
 
 //encryption
 uint8_t encryption=0;
-struct AES_ctx ctx;
-uint8_t key[AES_KEYLEN]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
-uint8_t iv[AES_BLOCKLEN];
+int type = 1;
+uint8_t key[32]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
+uint8_t iv[16];
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
 
 //main routine
@@ -49,7 +49,7 @@ int main(int argc, char* argv[])
     if(encryption==2)
     {
         //TODO: read key
-        AES_init_ctx(&ctx, key);
+        
         *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
         for(uint8_t i=4; i<4+10; i++) iv[i]=0; //10 random bytes TODO: replace with a rand() or pass through an additional arg
     }
@@ -116,8 +116,7 @@ int main(int argc, char* argv[])
             if(encryption==2)
             {
                 *((uint16_t*)&iv[14])=fn;
-                AES_ctx_set_iv(&ctx, iv); //re-init IV (update FN)
-                AES_CTR_xcrypt_buffer(&ctx, data, AES_BLOCKLEN);
+                aes_ctr_bytewise_payload_crypt(iv, key, data, type);
             }
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
