@@ -1,5 +1,10 @@
+all: m17-coder-sym m17-coder-sym-debug
+
 m17-coder-sym: m17-coder-sym.c
 	gcc -I ../../libm17 -L ../../libm17 -O2 -Wall -Wextra m17-coder-sym.c -o m17-coder-sym -lm -lm17
 
+m17-coder-sym-debug: m17-coder-sym-debug.c
+	gcc -I ../../libm17 -L ../../libm17 -O2 -Wall -Wextra m17-coder-sym-debug.c -o m17-coder-sym-debug -lm -lm17
+
 clean:
-	rm -f m17-coder-sym
+	rm -f m17-coder-sym m17-coder-sym-debug

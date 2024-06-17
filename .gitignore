@@ -1,5 +1,6 @@
 /SP5WWP/grc/*.py
 /SP5WWP/m17-coder/m17-coder-sym
+/SP5WWP/m17-coder/m17-coder-sym-debug
 /SP5WWP/m17-decoder/m17-decoder-sym
 /SP5WWP/m17-packet/m17-packet-encode
 /SP5WWP/m17-packet/m17-packet-decode
