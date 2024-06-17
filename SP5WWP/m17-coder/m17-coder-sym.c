@@ -27,12 +27,76 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
+
+//TODO: Test Encyrption Modes in Flowgraph to make sure they work the same
+//as they do in m17-coder-sym-debug.c
+
 //encryption
 uint8_t encryption=0;
 int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
 uint8_t key[32]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
 uint8_t iv[16];
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
+
+//Scrambler
+uint8_t scr_bytes[96];
+uint8_t scrambler_pn[768];
+uint32_t scrambler_key=0;
+uint32_t byte_counter=0;
+
+//scrambler pn sequence generation
+void pn_sequence_generator ()
+{
+  int i = 0;
+  uint32_t lfsr, bit;
+  uint8_t subtype = 0;
+  lfsr = scrambler_key;
+
+  if      (lfsr > 0 && lfsr <= 0xFF)          subtype = 0; // 8-bit key
+  else if (lfsr > 0xFF && lfsr <= 0xFFFF)     subtype = 1; //16-bit key
+  else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) subtype = 2; //24-bit key
+  else                                        subtype = 0; // 8-bit key (default)
+
+  //TODO: Set Frame Type based on subtype value
+
+  fprintf (stderr, "\nScrambler Key: %X; Subtype: %d;", lfsr, subtype);
+  fprintf (stderr, "\n pN: "); //debug
+  
+  //run pN sequence with taps specified
+  for (i = 0; i < 128*6; i++)
+  {
+    //get feedback bit with specidifed taps, depending on the subtype
+    if (subtype == 0)
+      bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
+    else if (subtype == 1)
+      bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
+    else if (subtype == 2)
+      bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
+    else bit = 0; //should never get here, but just in case
+    
+    bit &= 1; //truncate bit to 1 bit (required since I didn't do it above)
+    lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
+    lfsr &= 0xFFFFFF; //trancate lfsr to 24-bit (really doesn't matter)
+    scrambler_pn[i] = lfsr & 1;
+
+    //debug
+    // if ((i != 0) && (i%64 == 0) ) fprintf (stderr, " \n     ");
+    // fprintf (stderr, "%d", scrambler_pn[i]);
+
+  }
+
+  //pack bit array into byte array for easy data XOR
+  pack_bit_array_into_byte_array(scrambler_pn, scr_bytes, 96);
+
+  //debug packed bytes
+  for (i = 0; i < 96; i++)
+  {
+    if ((i != 0) && (i%16 == 0) ) fprintf (stderr, " \n     ");
+    fprintf (stderr, " %02X", scr_bytes[i]);
+  }
+
+  fprintf (stderr, "\n");
+}
 
 //main routine
 int main(int argc, char* argv[])
@@ -49,6 +113,13 @@ int main(int argc, char* argv[])
     //encryption init
     if(argc>2 && strstr(argv[1], "-K"))
         encryption=2; //AES key was passed
+
+    if(argc>1 && strstr(argv[1], "-k"))
+    {
+      // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
+      scrambler_key = 0x123456;
+      encryption=1; //Scrambler key was passed
+    }
 
     if(encryption==2)
     {
@@ -128,6 +199,15 @@ int main(int argc, char* argv[])
                 aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
             }
 
+            else if (encryption == 1)
+            {
+                for(uint8_t i=0; i<16; i++)
+                {
+                  data[i] ^= scr_bytes[byte_counter%96];
+                  byte_counter++;
+                }
+            }
+
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
             conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
 
@@ -156,6 +236,9 @@ int main(int argc, char* argv[])
 
             //increment the LICH counter
             lich_cnt = (lich_cnt + 1) % 6;
+
+            //reset byte_counter
+            if (byte_counter == 96) byte_counter = 0;
 
             //debug-only
 			#ifdef FN60_DEBUG

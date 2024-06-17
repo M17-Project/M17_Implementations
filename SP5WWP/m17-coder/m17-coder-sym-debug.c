@@ -105,6 +105,10 @@ int main(int argc, char* argv[])
     //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
     //return 0;
 
+    srand(time(NULL)); //seed random number generator
+    memset(key, 0, 32*sizeof(uint8_t));
+    memset(iv, 0, 16*sizeof(uint8_t));
+
     //encryption init
     if(argc>1 && strstr(argv[1], "-K"))
       encryption=2; //AES key was passed
@@ -114,11 +118,7 @@ int main(int argc, char* argv[])
       // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
       scrambler_key = 0x123456;
       encryption=1; //Scrambler key was passed
-    }  
-
-    srand(time(NULL)); //seed random number generator
-    memset(key, 0, 32*sizeof(uint8_t));
-    memset(iv, 0, 16*sizeof(uint8_t));
+    }
 
     if(encryption==2)
     {
