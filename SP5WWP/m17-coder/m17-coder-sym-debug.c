@@ -28,14 +28,74 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
 //encryption
-
 uint8_t encryption=0;
-int type = 1; //1=AES128, 2=AES192, 3=AES256
+int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
 
+//AES
 uint8_t key[32]; //TODO: replace with a `-K` arg key entry
 uint8_t iv[16];
 
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
+
+//Scrambler
+uint8_t scr_bytes[96];
+uint8_t scrambler_pn[768];
+uint32_t scrambler_key=0;
+uint32_t byte_counter=0;
+
+//scrambler pn sequence generation
+void pn_sequence_generator ()
+{
+  int i = 0;
+  uint32_t lfsr, bit;
+  uint8_t subtype = 0;
+  lfsr = scrambler_key;
+
+  if      (lfsr > 0 && lfsr <= 0xFF)          subtype = 0; // 8-bit key
+  else if (lfsr > 0xFF && lfsr <= 0xFFFF)     subtype = 1; //16-bit key
+  else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) subtype = 2; //24-bit key
+  else                                        subtype = 0; // 8-bit key (default)
+
+  //TODO: Set Frame Type based on subtype value
+
+  fprintf (stderr, "\nScrambler Key: %X; Subtype: %d;", lfsr, subtype);
+  fprintf (stderr, "\n pN: "); //debug
+  
+  //run pN sequence with taps specified
+  for (i = 0; i < 128*6; i++)
+  {
+    //get feedback bit with specidifed taps, depending on the subtype
+    if (subtype == 0)
+      bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
+    else if (subtype == 1)
+      bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
+    else if (subtype == 2)
+      bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
+    else bit = 0; //should never get here, but just in case
+    
+    bit &= 1; //truncate bit to 1 bit (required since I didn't do it above)
+    lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
+    lfsr &= 0xFFFFFF; //trancate lfsr to 24-bit (really doesn't matter)
+    scrambler_pn[i] = lfsr & 1;
+
+    //debug
+    // if ((i != 0) && (i%64 == 0) ) fprintf (stderr, " \n     ");
+    // fprintf (stderr, "%d", scrambler_pn[i]);
+
+  }
+
+  //pack bit array into byte array for easy data XOR
+  pack_bit_array_into_byte_array(scrambler_pn, scr_bytes, 96);
+
+  //debug packed bytes
+  for (i = 0; i < 96; i++)
+  {
+    if ((i != 0) && (i%16 == 0) ) fprintf (stderr, " \n     ");
+    fprintf (stderr, " %02X", scr_bytes[i]);
+  }
+
+  fprintf (stderr, "\n");
+}
 
 //main routine
 int main(int argc, char* argv[])
@@ -49,31 +109,38 @@ int main(int argc, char* argv[])
     if(argc>1 && strstr(argv[1], "-K"))
       encryption=2; //AES key was passed
 
+    if(argc>1 && strstr(argv[1], "-k"))
+    {
+      // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
+      scrambler_key = 0x123456;
+      encryption=1; //Scrambler key was passed
+    }  
+
     srand(time(NULL)); //seed random number generator
     memset(key, 0, 32*sizeof(uint8_t));
     memset(iv, 0, 16*sizeof(uint8_t));
 
-    //generate random key
-    // for (uint8_t i = 0; i < 32; i++)
-    //     key[i] = rand() & 0xFF;
-
-    //hard coded key
-    for (uint8_t i = 0; i < 32; i++)
-      key[i] = 0x77;
-
-    //print the random key
-    fprintf (stderr, "\nAES Key:");
-    for (uint8_t i = 0; i < 32; i++)
-    {
-      if (i == 16)
-        fprintf (stderr, "\n        ");
-      fprintf (stderr, " %02X", key[i]);
-    }
-    fprintf (stderr, "\n");
-
     if(encryption==2)
     {
         //TODO: read user input key
+
+        //generate random key
+        // for (uint8_t i = 0; i < 32; i++)
+        //     key[i] = rand() & 0xFF;
+
+        //hard coded key
+        for (uint8_t i = 0; i < 32; i++)
+          key[i] = 0x77;
+
+        //print the random key
+        fprintf (stderr, "\nAES Key:");
+        for (uint8_t i = 0; i < 32; i++)
+        {
+          if (i == 16)
+            fprintf (stderr, "\n        ");
+          fprintf (stderr, " %02X", key[i]);
+        }
+        fprintf (stderr, "\n");
         
         // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp //note: I don't think this works as intended
         for(uint8_t i=0; i<4; i++)    iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
@@ -94,6 +161,12 @@ int main(int argc, char* argv[])
     {
       next_lsf.type[0] = 0x03;
       next_lsf.type[1] = 0x95;
+    }
+    else if (encryption == 1)
+    {
+      pn_sequence_generator();
+      next_lsf.type[0] = 0x03;
+      next_lsf.type[1] = 0xCD;
     }
     else //no enc or enc_st field, normal 3200 voice
     {
@@ -167,8 +240,29 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "%02X", data[i]);
                 fprintf(stderr, "\n");
 
-                aes_ctr_bytewise_payload_crypt(iv, key, data, type);
+                aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
 
+                fprintf(stderr, "\tOUT: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
+            }
+            else if (encryption == 1)
+            {
+                fprintf(stderr, "FN: %03d; ", fn);
+
+                fprintf(stderr, "IN: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
+
+                for(uint8_t i=0; i<16; i++)
+                {
+                  data[i] ^= scr_bytes[byte_counter%96];
+                  byte_counter++;
+                }
+
+                fprintf(stderr, "       ");
                 fprintf(stderr, "\tOUT: ");
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", data[i]);
@@ -203,6 +297,9 @@ int main(int argc, char* argv[])
 
             //increment the LICH counter
             lich_cnt = (lich_cnt + 1) % 6;
+
+            //reset byte_counter
+            if (byte_counter == 96) byte_counter = 0;
 
             //debug-only
 			#ifdef FN60_DEBUG
@@ -272,5 +369,10 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
+//AES
 //encode debug with -- ./m17-coder-sym-debug -K > float.sym
 //decode debug with -- m17-fme -r -f float.sym -v 1 -E '7777777777777777 7777777777777777 7777777777777777 7777777777777777'
+
+//Scrambler
+//encode debug with -- ./m17-coder-sym-debug -k > scr.sym
+//decode debug with -- m17-fme -r -f scr.sym -v 1 -e 123456
