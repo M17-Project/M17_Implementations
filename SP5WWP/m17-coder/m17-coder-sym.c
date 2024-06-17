@@ -28,13 +28,13 @@ uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
 
-//TODO: Test Encyrption Modes in Flowgraph to make sure they work the same
-//as they do in m17-coder-sym-debug.c
+//TODO: Make Encyrption Mode Vectors (key, frametype) in Flowgraph for fread?
+//or make user args for those
 
 //encryption
 uint8_t encryption=0;
 int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
-uint8_t key[32]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
+uint8_t key[32]; //TODO: replace with a `-K` arg key entry
 uint8_t iv[16];
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
 
@@ -107,18 +107,25 @@ int main(int argc, char* argv[])
     //return 0;
 
     srand(time(NULL)); //seed random number generator
-    // memset(key, 0, 32*sizeof(uint8_t));
+    memset(key, 0, 32*sizeof(uint8_t));
     memset(iv, 0, 16*sizeof(uint8_t));
 
     //encryption init
-    if(argc>2 && strstr(argv[1], "-K"))
+    if(argc>1 && strstr(argv[1], "-K"))
+    {
+        //hard coded key
+        for (uint8_t i = 0; i < 32; i++)
+          key[i] = 0x77;
+
         encryption=2; //AES key was passed
+    }
 
     if(argc>1 && strstr(argv[1], "-k"))
     {
       // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
       scrambler_key = 0x123456;
       encryption=1; //Scrambler key was passed
+      pn_sequence_generator();
     }
 
     if(encryption==2)
@@ -133,14 +140,15 @@ int main(int argc, char* argv[])
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //this needs to be read in regardless with the current setup on m17_streamer.grc
     if(encryption==0)
     {
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+        // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
     }
     else
     {
         memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
-        finished=1;
+        // finished=1; //this was blocking previously
     }
     if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
@@ -162,16 +170,17 @@ int main(int argc, char* argv[])
         if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
         if(encryption==0)
         {
-            if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+            // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
         }
         else
         {
             memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
             iv[14] = (fn >> 8) & 0x7F;
             iv[15] = (fn >> 0) & 0xFF;
-            finished=1;
+            // finished=1; //this was blocking previously
         }
         if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
