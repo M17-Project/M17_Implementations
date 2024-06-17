@@ -29,7 +29,7 @@ uint8_t finished=0;
 
 //encryption
 uint8_t encryption=0;
-int type = 1;
+int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
 uint8_t key[32]={1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32}; //TODO: replace with a `-K` arg key entry
 uint8_t iv[16];
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
@@ -42,6 +42,10 @@ int main(int argc, char* argv[])
     //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
     //return 0;
 
+    srand(time(NULL)); //seed random number generator
+    // memset(key, 0, 32*sizeof(uint8_t));
+    memset(iv, 0, 16*sizeof(uint8_t));
+
     //encryption init
     if(argc>2 && strstr(argv[1], "-K"))
         encryption=2; //AES key was passed
@@ -50,8 +54,9 @@ int main(int argc, char* argv[])
     {
         //TODO: read key
         
-        *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
-        for(uint8_t i=4; i<4+10; i++) iv[i]=0; //10 random bytes TODO: replace with a rand() or pass through an additional arg
+        // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
+        for(uint8_t i=0; i<4; i++)    iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
+        for(uint8_t i=4; i<4+10; i++) iv[i] = rand() & 0xFF; //10 random bytes
     }
 
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
@@ -93,6 +98,8 @@ int main(int argc, char* argv[])
         else
         {
             memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+            iv[14] = (fn >> 8) & 0x7F;
+            iv[15] = (fn >> 0) & 0xFF;
             finished=1;
         }
         if(fread(next_data, 16, 1, stdin)<1) finished=1;
@@ -115,8 +122,10 @@ int main(int argc, char* argv[])
             //encrypt
             if(encryption==2)
             {
-                *((uint16_t*)&iv[14])=fn;
-                aes_ctr_bytewise_payload_crypt(iv, key, data, type);
+                // *((uint16_t*)&iv[14])=fn;
+                iv[14] = (fn >> 8) & 0x7F;
+                iv[15] = (fn >> 0) & 0xFF;
+                aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
             }
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)

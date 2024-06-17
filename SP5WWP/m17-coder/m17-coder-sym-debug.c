@@ -204,7 +204,7 @@ int main(int argc, char* argv[])
         if (encryption==2) //AES encryption enabled - use 112 bits of IV
         {
           memcpy(&(next_lsf.meta), iv, 14);
-          iv[14] = (fn >> 8) & 0xFF;
+          iv[14] = (fn >> 8) & 0x7F;
           iv[15] = (fn >> 0) & 0xFF;
         }
         else //Scrambler, or Clear
@@ -230,27 +230,26 @@ int main(int argc, char* argv[])
             //encrypt
             if(encryption==2)
             {
-                fprintf(stderr, "FN: %03d; IV: ", fn);
+                fprintf(stderr, "FN: %04X; IV: ", fn);
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", iv[i]);
                 fprintf(stderr, "\n");
 
-                fprintf(stderr, "\t IN: ");
+                fprintf(stderr, "\t  IN: ");
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", data[i]);
                 fprintf(stderr, "\n");
 
                 aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
 
-                fprintf(stderr, "\tOUT: ");
+                fprintf(stderr, "\t OUT: ");
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", data[i]);
                 fprintf(stderr, "\n");
             }
             else if (encryption == 1)
             {
-                fprintf(stderr, "FN: %03d; ", fn);
-
+                fprintf(stderr, "FN: %04X; ", fn);
                 fprintf(stderr, "IN: ");
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", data[i]);
@@ -262,8 +261,8 @@ int main(int argc, char* argv[])
                   byte_counter++;
                 }
 
-                fprintf(stderr, "       ");
-                fprintf(stderr, "\tOUT: ");
+                fprintf(stderr, "         ");
+                fprintf(stderr, "OUT: ");
                 for(uint8_t i=0; i<16; i++)
                     fprintf(stderr, "%02X", data[i]);
                 fprintf(stderr, "\n");
