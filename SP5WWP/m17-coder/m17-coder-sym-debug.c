@@ -143,8 +143,8 @@ int main(int argc, char* argv[])
         fprintf (stderr, "\n");
         
         // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp //note: I don't think this works as intended
-        for(uint8_t i=0; i<4; i++)    iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
-        for(uint8_t i=4; i<4+10; i++) iv[i] = rand() & 0xFF; //10 random bytes
+        for(uint8_t i=0; i<4; i++)  iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
+        for(uint8_t i=3; i<14; i++) iv[i] = rand() & 0xFF; //10 random bytes
     }
 
     memset(next_lsf.dst, 0xFF, 6*sizeof(uint8_t)); //broadcast
