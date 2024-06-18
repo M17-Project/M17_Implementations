@@ -27,15 +27,14 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
-
-//TODO: Make Encyrption Mode Vectors (key, frametype) in Flowgraph for fread?
-//or make user args for those
-
 //encryption
 uint8_t encryption=0;
-int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
+int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
+
+//AES
 uint8_t key[32]; //TODO: replace with a `-K` arg key entry
 uint8_t iv[16];
+
 time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
 
 //Scrambler
@@ -112,47 +111,82 @@ int main(int argc, char* argv[])
 
     //encryption init
     if(argc>1 && strstr(argv[1], "-K"))
-    {
-        //hard coded key
-        for (uint8_t i = 0; i < 32; i++)
-          key[i] = 0x77;
-
-        encryption=2; //AES key was passed
-    }
+      encryption=2; //AES key was passed
 
     if(argc>1 && strstr(argv[1], "-k"))
     {
       // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
       scrambler_key = 0x123456;
       encryption=1; //Scrambler key was passed
-      pn_sequence_generator();
     }
 
     if(encryption==2)
     {
-        //TODO: read key
+        //TODO: read user input key
+
+        //generate random key
+        // for (uint8_t i = 0; i < 32; i++)
+        //     key[i] = rand() & 0xFF;
+
+        //hard coded key
+        for (uint8_t i = 0; i < 32; i++)
+          key[i] = 0x77;
+
+        //print the random key
+        fprintf (stderr, "\nAES Key:");
+        for (uint8_t i = 0; i < 32; i++)
+        {
+          if (i == 16)
+            fprintf (stderr, "\n        ");
+          fprintf (stderr, " %02X", key[i]);
+        }
+        fprintf (stderr, "\n");
         
-        // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
+        // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp //note: I don't think this works as intended
         for(uint8_t i=0; i<4; i++)  iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
         for(uint8_t i=3; i<14; i++) iv[i] = rand() & 0xFF; //10 random bytes
     }
 
-    if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //this needs to be read in regardless with the current setup on m17_streamer.grc
-    if(encryption==0)
-    {
-        // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-    }
-    else
-    {
-        memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
-        // finished=1; //this was blocking previously
-    }
-    if(fread(next_data, 16, 1, stdin)<1) finished=1;
+    memset(next_lsf.dst, 0xFF, 6*sizeof(uint8_t)); //broadcast
 
-    while(!finished)
+    //AB1CDE
+    next_lsf.src[0] = 0x00;
+    next_lsf.src[1] = 0x00;
+    next_lsf.src[2] = 0x1F;
+    next_lsf.src[3] = 0x24;
+    next_lsf.src[4] = 0x5D;
+    next_lsf.src[5] = 0x51;
+
+    if (encryption == 2) //AES ENC, 3200 voice
+    {
+      next_lsf.type[0] = 0x03;
+      next_lsf.type[1] = 0x95;
+    }
+    else if (encryption == 1)
+    {
+      pn_sequence_generator();
+      next_lsf.type[0] = 0x03;
+      next_lsf.type[1] = 0xCD;
+    }
+    else //no enc or enc_st field, normal 3200 voice
+    {
+      next_lsf.type[0] = 0x00;
+      next_lsf.type[1] = 0x05;
+    }
+
+    finished = 0;
+
+    if (encryption == 2)
+    {
+      memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+    }
+    else //scrambler, or clear
+    {
+      memset(next_lsf.meta, 0, 14*sizeof(uint8_t));
+    }
+
+    // while(!finished)
+    for (uint8_t z = 0; z < 31; z++) //just crank out 5 superframes
     {
         if(lich_cnt == 0)
         {
@@ -164,25 +198,19 @@ int main(int argc, char* argv[])
             lsf.crc[1]=ccrc&0xFF;
         }
 
+        memset(next_data, 0, sizeof(next_data));
         memcpy(data, next_data, sizeof(data));
 
-        //we could discard the data we already have
-        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-        if(encryption==0)
+        if (encryption==2) //AES encryption enabled - use 112 bits of IV
         {
-            // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+          memcpy(&(next_lsf.meta), iv, 14);
+          iv[14] = (fn >> 8) & 0x7F;
+          iv[15] = (fn >> 0) & 0xFF;
         }
-        else
+        else //Scrambler, or Clear
         {
-            memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
-            iv[14] = (fn >> 8) & 0x7F;
-            iv[15] = (fn >> 0) & 0xFF;
-            // finished=1; //this was blocking previously
+          memset(next_lsf.meta, 0, 14*sizeof(uint8_t));
         }
-        if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
         if(got_lsf) //stream frames
         {
@@ -202,19 +230,42 @@ int main(int argc, char* argv[])
             //encrypt
             if(encryption==2)
             {
-                // *((uint16_t*)&iv[14])=fn;
-                iv[14] = (fn >> 8) & 0x7F;
-                iv[15] = (fn >> 0) & 0xFF;
-                aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
-            }
+                fprintf(stderr, "FN: %04X; IV: ", fn);
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", iv[i]);
+                fprintf(stderr, "\n");
 
+                fprintf(stderr, "\t  IN: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
+
+                aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
+
+                fprintf(stderr, "\t OUT: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
+            }
             else if (encryption == 1)
             {
+                fprintf(stderr, "FN: %04X; ", fn);
+                fprintf(stderr, "IN: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
+
                 for(uint8_t i=0; i<16; i++)
                 {
                   data[i] ^= scr_bytes[byte_counter%96];
                   byte_counter++;
                 }
+
+                fprintf(stderr, "         ");
+                fprintf(stderr, "OUT: ");
+                for(uint8_t i=0; i<16; i++)
+                    fprintf(stderr, "%02X", data[i]);
+                fprintf(stderr, "\n");
             }
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
@@ -231,14 +282,14 @@ int main(int argc, char* argv[])
             for(uint8_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
                 fwrite((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
-			//send frame data
-			send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            //send frame data
+            send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
-            /*printf("\tDATA: ");
-            for(uint8_t i=0; i<16; i++)
-                printf("%02X", data[i]);
-            printf("\n");*/
+            // fprintf(stderr, "\tDATA: ");
+            // for(uint8_t i=0; i<16; i++)
+            //     fprintf(stderr, "%02X", data[i]);
+            // fprintf(stderr, "\n");
 
             //increment the Frame Number
             fn = (fn + 1) % 0x8000;
@@ -261,12 +312,12 @@ int main(int argc, char* argv[])
 
             //send out the preamble
             frame_buff_cnt=0;
-			send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+			      send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
             //send LSF syncword
             frame_buff_cnt=0;
-			send_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
+			      send_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
             fwrite((uint8_t*)frame_buff, SYM_PER_SWD*sizeof(float), 1, stdout);
 
             //encode LSF data
@@ -278,9 +329,9 @@ int main(int argc, char* argv[])
             //randomize
             randomize_bits(rf_bits);
 
-			//send LSF data
+			      //send LSF data
             frame_buff_cnt=0;
-			send_data(frame_buff, &frame_buff_cnt, rf_bits);
+			      send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
 
             //send dummy symbols (debug)
@@ -303,8 +354,8 @@ int main(int argc, char* argv[])
             printf(" CRC: ");
             for(uint8_t i=0; i<2; i++)
                 printf("%02X", lsf.crc[i]);
-			printf("\n");*/
-		}
+			      printf("\n");*/
+		    }
 
         if(finished)
         {
@@ -316,3 +367,11 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
+
+//AES
+//encode debug with -- ./m17-coder-sym-debug -K > float.sym
+//decode debug with -- m17-fme -r -f float.sym -v 1 -E '7777777777777777 7777777777777777 7777777777777777 7777777777777777'
+
+//Scrambler
+//encode debug with -- ./m17-coder-sym-debug -k > scr.sym
+//decode debug with -- m17-fme -r -f scr.sym -v 1 -e 123456
