@@ -110,8 +110,9 @@ void scrambler_sequence_generator ()
 void usage()
 {
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "-K - AES Encryption (-K 7777777777777777777777777777777777777777777777777777777777777777),\n");
-    fprintf(stderr, "-k - Scrambler Encryption -k 123456,\n");
+    fprintf(stderr, "-K - AES Encryption Hex String (-K 7777777777777777777777777777777777777777777777777777777777777777),\n");
+    fprintf(stderr, "-F - AES Encryption From File (-F aeskey.txt),\n");
+    fprintf(stderr, "-k - Scrambler Encryption Hex String (-k 123456),\n");
     fprintf(stderr, "-D - Debug Mode,\n");
     fprintf(stderr, "-h - help / print usage,\n");
 }
@@ -183,6 +184,46 @@ int main(int argc, char* argv[])
                 {
 
                     parse_raw_key_string (argv[i+1]);
+
+                    fprintf (stderr, "AES Key:");
+                    for (uint8_t i = 0; i < 32; i++)
+                    {
+                        if (i == 16)
+                            fprintf (stderr, "\n        ");
+                        fprintf (stderr, " %02X", key[i]);
+                    }
+                    fprintf (stderr, "\n");
+
+
+                    encryption=2; //AES key was passed
+                }
+                if(argv[i][1]=='F') //-F - AES Encryption (key from file)
+                {
+                    char fname[128]={'\0'}; //output file
+                    if(strlen(&argv[i+1][0])>0)
+                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
+                    else
+                    {
+                        fprintf(stderr, "Invalid filename. Exiting...\n");
+                        return -1;
+                    }
+
+                    FILE *fp;
+                    char *source_str;
+
+                    fp = fopen(fname, "r");
+                    if (!fp)
+                    {
+                        fprintf(stderr, "Failed to load file %s.\n", fname);
+                        return -1;
+                    }
+                    source_str = (char*)malloc(64);
+                    fread(source_str, 1, 64, fp);
+                    fclose(fp);
+
+                    parse_raw_key_string (source_str);
+
+                    free(source_str);
 
                     fprintf (stderr, "AES Key:");
                     for (uint8_t i = 0; i < 32; i++)
@@ -454,3 +495,7 @@ int main(int argc, char* argv[])
 //Scrambler
 //encode debug with -- ./m17-coder-sym -D -k 123456 > scr.sym
 //decode debug with -- m17-fme -r -f scr.sym -v 1 -e 123456
+
+//AES (with file import)
+//encode debug with -- ./m17-coder-sym -D -F aeskey.txt > float.sym
+//decode debug with -- m17-fme -r -f float.sym -v 1 -E '7777777777777777 7777777777777777 7777777777777777 7777777777777777'
