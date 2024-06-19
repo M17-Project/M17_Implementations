@@ -9,8 +9,6 @@
 //tinier-aes
 #include "../../tinier-aes/aes.c"
 
-//#define FN60_DEBUG
-
 struct LSF lsf, next_lsf;
 
 uint8_t lich[6];                    //48 bits packed raw, unencoded LICH
@@ -27,75 +25,139 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
-
-//TODO: Make Encyrption Mode Vectors (key, frametype) in Flowgraph for fread?
-//or make user args for those
-
 //encryption
 uint8_t encryption=0;
-int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
-uint8_t key[32]; //TODO: replace with a `-K` arg key entry
+int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
+uint8_t key[32];
 uint8_t iv[16];
-time_t epoch = 1577836800L;         //Jan 1, 2020, 00:00:00 UTC
+time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
 
 //Scrambler
-uint8_t scr_bytes[96];
-uint8_t scrambler_pn[768];
+uint8_t scr_bytes[16];
+uint8_t scrambler_pn[128];
 uint32_t scrambler_key=0;
-uint32_t byte_counter=0;
+uint32_t scrambler_seed=0;
+int8_t scrambler_subtype = -1;
+
+//debug mode (preset lsf, zero payload for enc testing, etc)
+uint8_t debug_mode=0;
 
 //scrambler pn sequence generation
-void pn_sequence_generator ()
+void scrambler_sequence_generator ()
 {
   int i = 0;
   uint32_t lfsr, bit;
-  uint8_t subtype = 0;
-  lfsr = scrambler_key;
+  lfsr = scrambler_seed;
 
-  if      (lfsr > 0 && lfsr <= 0xFF)          subtype = 0; // 8-bit key
-  else if (lfsr > 0xFF && lfsr <= 0xFFFF)     subtype = 1; //16-bit key
-  else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) subtype = 2; //24-bit key
-  else                                        subtype = 0; // 8-bit key (default)
+  //only set if not initially set (first run), it is possible (and observed) that the scrambler_subtype can 
+  //change on subsequent passes if the current SEED for the LFSR falls below one of these thresholds
+  if (scrambler_subtype == -1)
+  {
+    if      (lfsr > 0 && lfsr <= 0xFF)          scrambler_subtype = 0; // 8-bit key
+    else if (lfsr > 0xFF && lfsr <= 0xFFFF)     scrambler_subtype = 1; //16-bit key
+    else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) scrambler_subtype = 2; //24-bit key
+    else                                        scrambler_subtype = 0; // 8-bit key (default)
+  }
 
-  //TODO: Set Frame Type based on subtype value
-
-  fprintf (stderr, "\nScrambler Key: %X; Subtype: %d;", lfsr, subtype);
-  fprintf (stderr, "\n pN: "); //debug
+  //TODO: Set Frame Type based on scrambler_subtype value
+  if (debug_mode > 1)
+  {
+    fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_key, lfsr, scrambler_subtype);
+    fprintf (stderr, "\n pN: ");
+  }
   
   //run pN sequence with taps specified
-  for (i = 0; i < 128*6; i++)
+  for (i = 0; i < 128; i++)
   {
-    //get feedback bit with specidifed taps, depending on the subtype
-    if (subtype == 0)
+    //get feedback bit with specified taps, depending on the scrambler_subtype
+    if (scrambler_subtype == 0)
       bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
-    else if (subtype == 1)
+    else if (scrambler_subtype == 1)
       bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
-    else if (subtype == 2)
+    else if (scrambler_subtype == 2)
       bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
     else bit = 0; //should never get here, but just in case
     
     bit &= 1; //truncate bit to 1 bit (required since I didn't do it above)
     lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
-    lfsr &= 0xFFFFFF; //trancate lfsr to 24-bit (really doesn't matter)
-    scrambler_pn[i] = lfsr & 1;
-
-    //debug
-    // if ((i != 0) && (i%64 == 0) ) fprintf (stderr, " \n     ");
-    // fprintf (stderr, "%d", scrambler_pn[i]);
+    lfsr &= 0xFFFFFF; //truncate lfsr to 24-bit (really doesn't matter)
+    scrambler_pn[i] = bit;
 
   }
 
   //pack bit array into byte array for easy data XOR
-  pack_bit_array_into_byte_array(scrambler_pn, scr_bytes, 96);
+  pack_bit_array_into_byte_array(scrambler_pn, scr_bytes, 16);
 
-  //debug packed bytes
-  for (i = 0; i < 96; i++)
+  //save scrambler seed for next round
+  scrambler_seed = lfsr;
+
+  //truncate seed so subtype will continue to set properly on subsequent passes
+  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
+  else                        scrambler_seed &= 0xFF;
+
+  if (debug_mode > 1)
   {
-    if ((i != 0) && (i%16 == 0) ) fprintf (stderr, " \n     ");
-    fprintf (stderr, " %02X", scr_bytes[i]);
+    //debug packed bytes
+    for (i = 0; i < 16; i++)
+        fprintf (stderr, " %02X", scr_bytes[i]);
+    fprintf (stderr, "\n");
   }
+  
+}
 
-  fprintf (stderr, "\n");
+void usage()
+{
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "-K - AES Encryption (-K 7777777777777777777777777777777777777777777777777777777777777777),\n");
+    fprintf(stderr, "-k - Scrambler Encryption -k 123456,\n");
+    fprintf(stderr, "-D - Debug Mode,\n");
+    fprintf(stderr, "-h - help / print usage,\n");
+}
+
+//convert a user string (as hex octets) into a uint8_t array for key
+void parse_raw_key_string (char * input)
+{
+    uint8_t * raw = key; //set pointer to the key array
+
+    //since we want this as octets, get strlen value, then divide by two
+    uint16_t len = strlen((const char*)input);
+
+    //if zero is returned, just do two
+    if (len == 0) len = 2;
+
+    //if odd number, then user didn't pass complete octets, but just add one to len value to make it even
+    if (len&1) len++;
+
+    //divide by two to get octet len
+    len /= 2;
+
+    //sanity check, maximum len should not exceed 32 for an AES key
+    if (len > 32) len = 32;
+
+    char octet_char[3];
+    octet_char[2] = 0;
+    uint16_t k = 0;
+    uint16_t i = 0;
+
+    //debug
+    // fprintf (stderr, "\nRaw Len: %d; Raw Octets:", len);
+
+    for (i = 0; i < len; i++)
+    {
+        strncpy (octet_char, input+k, 2);
+        octet_char[2] = 0;
+        sscanf (octet_char, "%hhX", &raw[i]);
+
+        //debug
+        // fprintf (stderr, " (%s)", octet_char);
+        // fprintf (stderr, " %02X", raw[i]);
+
+        k += 2;
+    }
+
+    // fprintf (stderr, "\n");
 }
 
 //main routine
@@ -106,51 +168,114 @@ int main(int argc, char* argv[])
     //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
     //return 0;
 
-    srand(time(NULL)); //seed random number generator
+    srand(time(NULL)); //random number generator (for IV rand() seed value)
     memset(key, 0, 32*sizeof(uint8_t));
     memset(iv, 0, 16*sizeof(uint8_t));
 
-    //encryption init
-    if(argc>1 && strstr(argv[1], "-K"))
+    //scan command line options for input data (purely optional)
+    if(argc>=1)
     {
-        //hard coded key
-        for (uint8_t i = 0; i < 32; i++)
-          key[i] = 0x77;
+        for(uint8_t i=1; i<argc; i++)
+        {
+            if(argv[i][0]=='-')
+            {
+                if(argv[i][1]=='K') //-K - AES Encryption
+                {
 
-        encryption=2; //AES key was passed
-    }
+                    parse_raw_key_string (argv[i+1]);
 
-    if(argc>1 && strstr(argv[1], "-k"))
-    {
-      // scrambler_key = atoi(argv[2]); //would prefer to get the hex input, but good enough to test with
-      scrambler_key = 0x123456;
-      encryption=1; //Scrambler key was passed
-      pn_sequence_generator();
+                    fprintf (stderr, "AES Key:");
+                    for (uint8_t i = 0; i < 32; i++)
+                    {
+                        if (i == 16)
+                            fprintf (stderr, "\n        ");
+                        fprintf (stderr, " %02X", key[i]);
+                    }
+                    fprintf (stderr, "\n");
+
+
+                    encryption=2; //AES key was passed
+                }
+                else if(argv[i][1]=='k') //-k - Scrambler Encryption
+                {
+                    
+                    parse_raw_key_string (argv[i+1]);
+                    scrambler_key = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
+
+                    fprintf (stderr, "Scrambler Key: 0x%06X;", scrambler_key);
+
+                    scrambler_seed = scrambler_key; //initialize the seed with the key value
+
+                    encryption=1; //Scrambler key was passed
+
+                }
+                else if(argv[i][1]=='D') //-D - Debug Mode
+                {
+                    debug_mode=1;
+                }
+                else if(argv[i][1]=='h') //-h - help / usage
+                {
+                    usage();
+                    return -1;
+                }
+                else
+                {
+                    fprintf(stderr, "Unknown param detected. Exiting...\n");
+                    usage();
+                    return -1;
+                }
+            }
+        }
     }
 
     if(encryption==2)
     {
-        //TODO: read key
-        
-        // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
-        for(uint8_t i=0; i<4; i++)  iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
-        for(uint8_t i=3; i<14; i++) iv[i] = rand() & 0xFF; //10 random bytes
+        for(uint8_t i=0; i<4; i++)
+            iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
+        for(uint8_t i=3; i<14; i++)
+            iv[i] = rand() & 0xFF; //10 random bytes
     }
 
-    if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //this needs to be read in regardless with the current setup on m17_streamer.grc
-    if(encryption==0)
+    if (debug_mode == 1)
     {
-        // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+        //broadcast
+        memset(next_lsf.dst, 0xFF, 6*sizeof(uint8_t));
+
+        //N0CALL
+        next_lsf.src[0] = 0x00;
+        next_lsf.src[1] = 0x00;
+        next_lsf.src[2] = 0x4B;
+        next_lsf.src[3] = 0x13;
+        next_lsf.src[4] = 0xD1;
+        next_lsf.src[5] = 0x06;
+
+        if (encryption == 2) //AES ENC, 3200 voice
+        {
+            next_lsf.type[0] = 0x03;
+            next_lsf.type[1] = 0x95;
+        }
+        else if (encryption == 1) //Scrambler ENC, 3200 Voice
+        {
+            next_lsf.type[0] = 0x03;
+            next_lsf.type[1] = 0xCD;
+        }
+        else //no enc or subtype field, normal 3200 voice
+        {
+            next_lsf.type[0] = 0x00;
+            next_lsf.type[1] = 0x05;
+        }
+
+        finished = 0;
     }
+
     else
     {
-        memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
-        // finished=1; //this was blocking previously
+        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+        if(fread(next_data, 16, 1, stdin)<1) finished=1;
     }
-    if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
     while(!finished)
     {
@@ -166,23 +291,28 @@ int main(int argc, char* argv[])
 
         memcpy(data, next_data, sizeof(data));
 
-        //we could discard the data we already have
-        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-        if(encryption==0)
+        if (debug_mode == 1)
         {
-            // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
+            memset(next_data, 0, sizeof(next_data));
+            memcpy(data, next_data, sizeof(data));
         }
+
         else
         {
-            memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+            if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
+            if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
+            if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+            if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+            if(fread(next_data, 16, 1, stdin)<1) finished=1;
+        }
+
+        //AES encryption enabled - use 112 bits of IV
+        if(encryption==2)
+        {
+            memcpy(&(next_lsf.meta), iv, 14);
             iv[14] = (fn >> 8) & 0x7F;
             iv[15] = (fn >> 0) & 0xFF;
-            // finished=1; //this was blocking previously
         }
-        if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
         if(got_lsf) //stream frames
         {
@@ -202,7 +332,6 @@ int main(int argc, char* argv[])
             //encrypt
             if(encryption==2)
             {
-                // *((uint16_t*)&iv[14])=fn;
                 iv[14] = (fn >> 8) & 0x7F;
                 iv[15] = (fn >> 0) & 0xFF;
                 aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
@@ -210,10 +339,10 @@ int main(int argc, char* argv[])
 
             else if (encryption == 1)
             {
+                scrambler_sequence_generator();
                 for(uint8_t i=0; i<16; i++)
                 {
-                  data[i] ^= scr_bytes[byte_counter%96];
-                  byte_counter++;
+                  data[i] ^= scr_bytes[i];
                 }
             }
 
@@ -246,14 +375,13 @@ int main(int argc, char* argv[])
             //increment the LICH counter
             lich_cnt = (lich_cnt + 1) % 6;
 
-            //reset byte_counter
-            if (byte_counter == 96) byte_counter = 0;
-
             //debug-only
-			#ifdef FN60_DEBUG
-            if(fn==6*10)
-                return 0;
-			#endif
+			if (debug_mode == 1)
+            {
+                if(fn==6*10)
+                    return 0;
+            }
+            
         }
         else //LSF
         {
@@ -316,3 +444,13 @@ int main(int argc, char* argv[])
 
 	return 0;
 }
+
+//DEBUG:
+
+//AES
+//encode debug with -- ./m17-coder-sym -D -K 7777777777777777777777777777777777777777777777777777777777777777 > float.sym
+//decode debug with -- m17-fme -r -f float.sym -v 1 -E '7777777777777777 7777777777777777 7777777777777777 7777777777777777'
+
+//Scrambler
+//encode debug with -- ./m17-coder-sym -D -k 123456 > scr.sym
+//decode debug with -- m17-fme -r -f scr.sym -v 1 -e 123456
