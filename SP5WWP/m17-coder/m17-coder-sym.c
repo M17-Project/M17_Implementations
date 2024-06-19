@@ -498,4 +498,4 @@ int main(int argc, char* argv[])
 
 //AES (with file import)
 //encode debug with -- ./m17-coder-sym -D -F aeskey.txt > float.sym
-//decode debug with -- m17-fme -r -f float.sym -v 1 -E '7777777777777777 7777777777777777 7777777777777777 7777777777777777'
+//decode debug with -- m17-fme -r -f float.sym -v 1 -E '1234567890ABCDEF 7777777777777777 FEDCBA0987654321 8888888888888888'
