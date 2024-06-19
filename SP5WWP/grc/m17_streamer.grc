@@ -40,9 +40,9 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: ../stream_fifo
+    file: /tmp/fifo0
     type: byte
-    unbuffered: 'False'
+    unbuffered: 'True'
     vlen: '1'
   states:
     bus_sink: false
@@ -78,8 +78,8 @@ blocks:
     comment: ''
     ignoretag: 'True'
     limit: auto
-    maximum: '0.1'
-    maxoutbuf: '0'
+    maximum: 6+6+2+14+16
+    maxoutbuf: 6+6+2+14+16
     minoutbuf: '0'
     samples_per_second: (6+6+2+14+16)*(1000/40)
     type: byte
