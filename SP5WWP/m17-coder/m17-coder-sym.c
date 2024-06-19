@@ -197,7 +197,7 @@ int main(int argc, char* argv[])
 
                     encryption=2; //AES key was passed
                 }
-                if(argv[i][1]=='F') //-F - AES Encryption (key from file)
+                else if(argv[i][1]=='F') //-F - AES Encryption (key from file)
                 {
                     char fname[128]={'\0'}; //output file
                     if(strlen(&argv[i+1][0])>0)
