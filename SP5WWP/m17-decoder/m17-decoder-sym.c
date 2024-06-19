@@ -213,16 +213,47 @@ int main(int argc, char* argv[])
                         }
 
                         //TYPE
-                        printf("TYPE: ");
-                        for(uint8_t i=0; i<2; i++)
-                            printf("%02X", lsf[12+i]);
+                        uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
+                        printf("TYPE: %04X (", type);
+                        if(type&&1)
+                            printf("STREAM: ");
+                        else
+                            printf("PACKET: "); //shouldn't happen
+                        if(((type>>1)&3)==1)
+                            printf("DATA, ");
+                        else if(((type>>1)&3)==2)
+                            printf("VOICE, ");
+                        else if(((type>>1)&3)==3)
+                            printf("VOICE+DATA, "); 
+                        printf("ENCR: ");
+                        if(((type>>3)&3)==0)
+                            printf("PLAIN, ");
+                        else if(((type>>3)&3)==1)
+                        {
+                            printf("SCRAM ");
+                            if(((type>>5)&3)==1)
+                                printf("8-bit, ");
+                            else if(((type>>5)&3)==2)
+                                printf("16-bit, ");
+                            else if(((type>>5)&3)==3)
+                                printf("24-bit, ");
+                        }
+                        else if(((type>>3)&3)==2)
+                            printf("AES, ");
+                        else
+                            printf("UNK, ");
+                        printf("CAN: %d", (type>>7)&0xF);
+                        if((type>>11)&1)
+                            printf(", SIGNED");
+                        printf(") ");
 
                         //META
                         if(show_meta)
                         {
-                            printf(" META: ");
+                            printf("META: ");
                             for(uint8_t i=0; i<14; i++)
                                 printf("%02X", lsf[14+i]);
+                            printf(" ");
                         }
 
                         //CRC
@@ -232,9 +263,9 @@ int main(int argc, char* argv[])
                             //for(uint8_t i=0; i<2; i++)
                                 //printf("%02X", lsf[28+i]);
                             if(CRC_M17(lsf, 30))
-                                printf(" LSF_CRC_ERR");
+                                printf("LSF_CRC_ERR");
                             else
-                                printf(" LSF_CRC_OK ");
+                                printf("LSF_CRC_OK");
                         }
                         printf("\n");
                     }
@@ -282,10 +313,39 @@ int main(int argc, char* argv[])
                     }
 
                     //TYPE
-                    printf("TYPE: ");
-                    for(uint8_t i=0; i<2; i++)
-                        printf("%02X", lsf[12+i]);
-                    printf(" ");
+                    uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
+                    printf("TYPE: %04X (", type);
+                    if(type&&1)
+                        printf("STREAM: ");
+                    else
+                        printf("PACKET: "); //shouldn't happen
+                    if(((type>>1)&3)==1)
+                        printf("DATA, ");
+                    else if(((type>>1)&3)==2)
+                        printf("VOICE, ");
+                    else if(((type>>1)&3)==3)
+                        printf("VOICE+DATA, "); 
+                    printf("ENCR: ");
+                    if(((type>>3)&3)==0)
+                        printf("PLAIN, ");
+                    else if(((type>>3)&3)==1)
+                    {
+                        printf("SCRAM ");
+                        if(((type>>5)&3)==1)
+                            printf("8-bit, ");
+                        else if(((type>>5)&3)==2)
+                            printf("16-bit, ");
+                        else if(((type>>5)&3)==3)
+                            printf("24-bit, ");
+                    }
+                    else if(((type>>3)&3)==2)
+                        printf("AES, ");
+                    else
+                        printf("UNK, ");
+                    printf("CAN: %d", (type>>7)&0xF);
+                    if((type>>11)&1)
+                        printf(", SIGNED");
+                    printf(") ");
 
                     //META
                     if(show_meta)
@@ -305,12 +365,13 @@ int main(int argc, char* argv[])
                         if(CRC_M17(lsf, 30))
                             printf("LSF_CRC_ERR");
                         else
-                            printf("LSF_CRC_OK ");
+                            printf("LSF_CRC_OK");
+                        printf(" ");
                     }
 
                     //Viterbi decoder errors
                     if(show_viterbi_errs)
-                        printf(" e=%1.1f\n", (float)e/0xFFFF);
+                        printf("e=%1.1f\n", (float)e/0xFFFF);
 
                     printf("\n");
                 }
