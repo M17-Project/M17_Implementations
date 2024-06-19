@@ -25,10 +25,6 @@ uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
 
-
-//TODO: Make Encyrption Mode Vectors (key, frametype) in Flowgraph for fread?
-//or make user args for those
-
 //encryption
 uint8_t encryption=0;
 int aes_type = 1;  //1=AES128, 2=AES192, 3=AES256
@@ -41,46 +37,51 @@ uint8_t scr_bytes[16];
 uint8_t scrambler_pn[128];
 uint32_t scrambler_key=0;
 uint32_t scrambler_seed=0;
+int8_t scrambler_subtype = -1;
 
 //debug mode (preset lsf, zero payload for enc testing, etc)
 uint8_t debug_mode=0;
 
 //scrambler pn sequence generation
-void pn_sequence_generator ()
+void scrambler_sequence_generator ()
 {
   int i = 0;
   uint32_t lfsr, bit;
-  uint8_t subtype = 0;
   lfsr = scrambler_seed;
 
-  if      (lfsr > 0 && lfsr <= 0xFF)          subtype = 0; // 8-bit key
-  else if (lfsr > 0xFF && lfsr <= 0xFFFF)     subtype = 1; //16-bit key
-  else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) subtype = 2; //24-bit key
-  else                                        subtype = 0; // 8-bit key (default)
+  //only set if not initially set(first run), it is possible (and observed) that the scrambler_subtype can 
+  //change on subsequent passes if the current SEED for the LFSR falls below one of these thresholds
+  if (scrambler_subtype == -1)
+  {
+    if      (lfsr > 0 && lfsr <= 0xFF)          scrambler_subtype = 0; // 8-bit key
+    else if (lfsr > 0xFF && lfsr <= 0xFFFF)     scrambler_subtype = 1; //16-bit key
+    else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) scrambler_subtype = 2; //24-bit key
+    else                                        scrambler_subtype = 0; // 8-bit key (default)
+  }
 
-  //TODO: Set Frame Type based on subtype value
+  //TODO: Set Frame Type based on scrambler_subtype value
   if (debug_mode == 1)
   {
-    fprintf (stderr, "\nScrambler Key: %X; Seed: %X; Subtype: %d;", scrambler_key, lfsr, subtype);
+    fprintf (stderr, "\nScrambler Key: %X; Seed: %X; Subtype: %d;", scrambler_key, lfsr, scrambler_subtype);
     fprintf (stderr, "\n pN: "); //debug
   }
   
   //run pN sequence with taps specified
   for (i = 0; i < 128; i++)
   {
-    //get feedback bit with specidifed taps, depending on the subtype
-    if (subtype == 0)
+    //get feedback bit with specified taps, depending on the scrambler_subtype
+    if (scrambler_subtype == 0)
       bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
-    else if (subtype == 1)
+    else if (scrambler_subtype == 1)
       bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
-    else if (subtype == 2)
+    else if (scrambler_subtype == 2)
       bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
     else bit = 0; //should never get here, but just in case
     
     bit &= 1; //truncate bit to 1 bit (required since I didn't do it above)
     lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
-    lfsr &= 0xFFFFFF; //trancate lfsr to 24-bit (really doesn't matter)
-    scrambler_pn[i] = lfsr & 1;
+    lfsr &= 0xFFFFFF; //truncate lfsr to 24-bit (really doesn't matter)
+    scrambler_pn[i] = bit;
 
   }
 
@@ -91,10 +92,10 @@ void pn_sequence_generator ()
   scrambler_seed = lfsr;
 
   //truncate seed so subtype will continue to set properly on subsequent passes
-  if (subtype == 0) scrambler_seed &= 0xFF;
-  if (subtype == 1) scrambler_seed &= 0xFFFF;
-  if (subtype == 2) scrambler_seed &= 0xFFFFFF;
-  else              scrambler_seed &= 0xFF;
+  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
+  else                        scrambler_seed &= 0xFF;
 
   if (debug_mode == 1)
   {
@@ -159,7 +160,6 @@ int main(int argc, char* argv[])
       scrambler_key = 0x123456;
       scrambler_seed = scrambler_key; //initialize the seed with the key value
       encryption=1; //Scrambler key was passed
-      //pn_sequence_generator();
     }
 
     if(encryption==2)
@@ -249,9 +249,6 @@ int main(int argc, char* argv[])
             iv[15] = (fn >> 0) & 0xFF;
         }
 
-        else if(encryption==1)
-            pn_sequence_generator();
-
         if(got_lsf) //stream frames
         {
             //send stream frame syncword
@@ -277,6 +274,7 @@ int main(int argc, char* argv[])
 
             else if (encryption == 1)
             {
+                scrambler_sequence_generator();
                 for(uint8_t i=0; i<16; i++)
                 {
                   data[i] ^= scr_bytes[i];
