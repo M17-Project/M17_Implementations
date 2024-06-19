@@ -7,7 +7,7 @@
 //libm17
 #include <m17.h>
 //tinier-aes
-#include "../../tinier-aes/aes.c"
+#include "../../tinier-aes/aes.h"
 
 struct LSF lsf, next_lsf;
 
