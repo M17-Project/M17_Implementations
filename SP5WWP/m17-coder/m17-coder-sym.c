@@ -131,8 +131,6 @@ int main(int argc, char* argv[])
     if(encryption==2)
     {
         //TODO: read key
-        
-        // *((int32_t*)&iv[0])=(uint32_t)time(NULL)-(uint32_t)epoch; //timestamp
         for(uint8_t i=0; i<4; i++)  iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
         for(uint8_t i=3; i<14; i++) iv[i] = rand() & 0xFF; //10 random bytes
     }
@@ -140,16 +138,7 @@ int main(int argc, char* argv[])
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //this needs to be read in regardless with the current setup on m17_streamer.grc
-    if(encryption==0)
-    {
-        // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-    }
-    else
-    {
-        memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
-        // finished=1; //this was blocking previously
-    }
+    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
     if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
     while(!finished)
@@ -170,18 +159,16 @@ int main(int argc, char* argv[])
         if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-        if(encryption==0)
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+
+        //AES encryption enabled - use 112 bits of IV
+        if(encryption==2)
         {
-            // if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1; //read data from stdin
-        }
-        else
-        {
-            memcpy(&(next_lsf.meta), iv, 14); //AES encryption enabled - use 112 bits of IV
+            memcpy(&(next_lsf.meta), iv, 14);
             iv[14] = (fn >> 8) & 0x7F;
             iv[15] = (fn >> 0) & 0xFF;
-            // finished=1; //this was blocking previously
         }
+
         if(fread(next_data, 16, 1, stdin)<1) finished=1;
 
         if(got_lsf) //stream frames
@@ -202,7 +189,6 @@ int main(int argc, char* argv[])
             //encrypt
             if(encryption==2)
             {
-                // *((uint16_t*)&iv[14])=fn;
                 iv[14] = (fn >> 8) & 0x7F;
                 iv[15] = (fn >> 0) & 0xFF;
                 aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
