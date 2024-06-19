@@ -6,9 +6,12 @@
 //libm17
 #include <m17.h>
 
-#define DECODE_CALLSIGNS
-#define SHOW_VITERBI_ERRS
-#define DIST_THRESH					2.0f //distance threshold for the L2 metric (for syncword detection)
+//settings
+uint8_t decode_callsigns=0;
+uint8_t show_viterbi_errs=0;
+uint8_t show_meta=0;
+uint8_t show_lsf_crc=0;
+float dist_thresh=2.0;				//distance threshold for the L2 metric (for syncword detection), default: 2.0
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
@@ -31,8 +34,53 @@ uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
 uint8_t pushed;                     //counter for pushed symbols
 
-int main(void)
+int main(int argc, char* argv[])
 {
+    if(argc>1) //arg scanning: not foolproof at all
+    {
+        for(uint8_t i=1; i<argc; i++)
+        {
+            if(!strcmp(argv[i], "-c"))
+            {
+                decode_callsigns=1;
+                printf("Decode callsigns: ON\n");
+            }
+
+            if(!strcmp(argv[i], "-v"))
+            {
+                show_viterbi_errs=1;
+                printf("Show Viterbi errors: ON\n");
+            }
+
+            if(!strcmp(argv[i], "-m"))
+            {
+                show_meta=1;
+                printf("Show META field: ON\n");
+            }
+
+            if(!strcmp(argv[i], "-d"))
+            {
+                dist_thresh=atof(argv[i+1]);
+                if(dist_thresh>=0)
+                    printf("Syncword detection threshold: %1.2f\n", dist_thresh);
+                else
+                {
+                    printf("Invalid syncword detection threshold, setting to default (2.0)\n");
+                    dist_thresh=2.0f;
+                }
+                i++;
+            }
+
+            if(!strcmp(argv[i], "-l"))
+            {
+                show_lsf_crc=1;
+                printf("Show LSF CRC: ON\n");
+            }
+        }
+    }
+
+    printf("Awaiting samples...\n");
+
     while(1)
     {
         //wait for another symbol
@@ -51,7 +99,7 @@ int main(void)
             //calculate euclidean norm
             dist = eucl_norm(last, str_sync_symbols, 8);
 
-            if(dist<DIST_THRESH) //frame syncword detected
+            if(dist<dist_thresh) //frame syncword detected
             {
                 //fprintf(stderr, "str_sync dist: %3.5f\n", dist);
                 syncd=1;
@@ -63,7 +111,7 @@ int main(void)
                 //calculate euclidean norm again, this time against LSF syncword
                 dist = eucl_norm(last, lsf_sync_symbols, 8);
 
-                if(dist<DIST_THRESH) //LSF syncword
+                if(dist<dist_thresh) //LSF syncword
                 {
                     //fprintf(stderr, "lsf_sync dist: %3.5f\n", dist);
                     syncd=1;
@@ -108,11 +156,10 @@ int main(void)
                     {
                         printf("%02X", frame_data[i]);
                     }
-                    #ifdef SHOW_VITERBI_ERRS
-                    printf(" e=%1.1f\n", (float)e/0xFFFF);
-                    #else
+                    if(show_viterbi_errs)
+                        printf(" e=%1.1f\n", (float)e/0xFFFF);
+                    
                     printf("\n");
-                    #endif
 
                     //send codec2 stream to stdout
                     //fwrite(&frame_data[3], 16, 1, stdout);
@@ -137,7 +184,77 @@ int main(void)
                     //debug - dump LICH
                     if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
                     {
-                        #ifdef DECODE_CALLSIGNS
+                        if(decode_callsigns)
+                        {
+                            uint8_t d_dst[12], d_src[12]; //decoded strings
+
+                            decode_callsign_bytes(d_dst, &lsf[0]);
+                            decode_callsign_bytes(d_src, &lsf[6]);
+
+                            //DST
+                            printf("DST: %-9s ", d_dst);
+
+                            //SRC
+                            printf("SRC: %-9s ", d_src);
+                        }
+                        else
+                        {
+                            //DST
+                            printf("DST: ");
+                            for(uint8_t i=0; i<6; i++)
+                                printf("%02X", lsf[i]);
+                            printf(" ");
+
+                            //SRC
+                            printf("SRC: ");
+                            for(uint8_t i=0; i<6; i++)
+                                printf("%02X", lsf[6+i]);
+                            printf(" ");
+                        }
+
+                        //TYPE
+                        printf("TYPE: ");
+                        for(uint8_t i=0; i<2; i++)
+                            printf("%02X", lsf[12+i]);
+
+                        //META
+                        if(show_meta)
+                        {
+                            printf(" META: ");
+                            for(uint8_t i=0; i<14; i++)
+                                printf("%02X", lsf[14+i]);
+                        }
+
+                        //CRC
+                        if(show_lsf_crc)
+                        {
+                            //printf("CRC: ");
+                            //for(uint8_t i=0; i<2; i++)
+                                //printf("%02X", lsf[28+i]);
+                            if(CRC_M17(lsf, 30))
+                                printf(" LSF_CRC_ERR");
+                            else
+                                printf(" LSF_CRC_OK ");
+                        }
+                        printf("\n");
+                    }
+
+                    expected_next_fn = (fn + 1) % 0x8000;
+                }
+                else //lsf
+                {
+                    printf("{LSF} ");
+
+                    //decode
+                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
+
+                    //shift the buffer 1 position left - get rid of the encoded flushing bits
+                    for(uint8_t i=0; i<30; i++)
+                        lsf[i]=lsf[i+1];
+
+                    //dump data
+                    if(decode_callsigns)
+                    {
                         uint8_t d_dst[12], d_src[12]; //decoded strings
 
                         decode_callsign_bytes(d_dst, &lsf[0]);
@@ -148,7 +265,9 @@ int main(void)
 
                         //SRC
                         printf("SRC: %-9s ", d_src);
-                        #else
+                    }
+                    else
+                    {
                         //DST
                         printf("DST: ");
                         for(uint8_t i=0; i<6; i++)
@@ -160,69 +279,7 @@ int main(void)
                         for(uint8_t i=0; i<6; i++)
                             printf("%02X", lsf[6+i]);
                         printf(" ");
-                        #endif
-
-                        //TYPE
-                        printf("TYPE: ");
-                        for(uint8_t i=0; i<2; i++)
-                            printf("%02X", lsf[12+i]);
-                        printf(" ");
-
-                        //META
-                        printf("META: ");
-                        for(uint8_t i=0; i<14; i++)
-                            printf("%02X", lsf[14+i]);
-                        //printf(" ");
-
-                        //CRC
-                        //printf("CRC: ");
-                        //for(uint8_t i=0; i<2; i++)
-                            //printf("%02X", lsf[28+i]);
-                        if(CRC_M17(lsf, 30))
-                            printf(" LSF_CRC_ERR");
-                        else
-                            printf(" LSF_CRC_OK ");
-                        printf("\n");
                     }
-
-                    expected_next_fn = (fn + 1) % 0x8000;
-                }
-                else //lsf
-                {
-                    printf("LSF\n");
-
-                    //decode
-                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
-
-                    //shift the buffer 1 position left - get rid of the encoded flushing bits
-                    for(uint8_t i=0; i<30; i++)
-                        lsf[i]=lsf[i+1];
-
-                    //dump data
-                    #ifdef DECODE_CALLSIGNS
-                    uint8_t d_dst[12], d_src[12]; //decoded strings
-
-                    decode_callsign_bytes(d_dst, &lsf[0]);
-                    decode_callsign_bytes(d_src, &lsf[6]);
-
-                    //DST
-                    printf("DST: %-9s ", d_dst);
-
-                    //SRC
-                    printf("SRC: %-9s ", d_src);
-                    #else
-                    //DST
-                    printf("DST: ");
-                    for(uint8_t i=0; i<6; i++)
-                        printf("%02X", lsf[i]);
-                    printf(" ");
-
-                    //SRC
-                    printf("SRC: ");
-                    for(uint8_t i=0; i<6; i++)
-                        printf("%02X", lsf[6+i]);
-                    printf(" ");
-                    #endif
 
                     //TYPE
                     printf("TYPE: ");
@@ -231,26 +288,31 @@ int main(void)
                     printf(" ");
 
                     //META
-                    printf("META: ");
-                    for(uint8_t i=0; i<14; i++)
-                        printf("%02X", lsf[14+i]);
-                    printf(" ");
+                    if(show_meta)
+                    {
+                        printf("META: ");
+                        for(uint8_t i=0; i<14; i++)
+                            printf("%02X", lsf[14+i]);
+                        printf(" ");
+                    }
 
                     //CRC
-                    //printf("CRC: ");
-                    //for(uint8_t i=0; i<2; i++)
-                        //printf("%02X", lsf[28+i]);
-                    if(CRC_M17(lsf, 30))
-                        printf("LSF_CRC_ERR");
-                    else
-                        printf("LSF_CRC_OK ");
+                    if(show_lsf_crc)
+                    {
+                        //printf("CRC: ");
+                        //for(uint8_t i=0; i<2; i++)
+                            //printf("%02X", lsf[28+i]);
+                        if(CRC_M17(lsf, 30))
+                            printf("LSF_CRC_ERR");
+                        else
+                            printf("LSF_CRC_OK ");
+                    }
 
                     //Viterbi decoder errors
-                    #ifdef SHOW_VITERBI_ERRS
-                    printf(" e=%1.1f\n", (float)e/0xFFFF);
-                    #else
+                    if(show_viterbi_errs)
+                        printf(" e=%1.1f\n", (float)e/0xFFFF);
+
                     printf("\n");
-                    #endif
                 }
 
                 //job done
