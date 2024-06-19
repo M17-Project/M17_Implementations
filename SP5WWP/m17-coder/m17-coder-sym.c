@@ -5,6 +5,8 @@
 
 //libm17
 #include <m17.h>
+//micro-ecc
+#include "../../micro-ecc/uECC.h"
 
 //#define FN60_DEBUG
 
@@ -23,6 +25,10 @@ uint16_t fn=0;                      //16-bit Frame Number (for the stream mode)
 uint8_t lich_cnt=0;                 //0..5 LICH counter
 uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
 uint8_t finished=0;
+
+//used for signatures
+uint8_t digest[16]={0};             //16-byte field for the stream digest
+uint8_t signed_str=0;               //is the stream supposed to be signed?
 
 //main routine
 int main(void)
@@ -52,6 +58,18 @@ int main(void)
 
         memcpy(data, next_data, sizeof(data));
 
+        //calculate stream digest
+        signed_str=(lsf.type[0]>>3)&1;
+        if(signed_str) //signed stream? check bit 11 of TYPE
+        {
+            for(uint8_t i=0; i<sizeof(digest); i++)
+                digest[i]^=data[i];
+            uint8_t tmp=digest[0];
+            for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                digest[i]=digest[i+1];
+            digest[sizeof(digest)-1]=tmp;
+        }
+
         //we could discard the data we already have
         if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
@@ -75,7 +93,12 @@ int main(void)
             unpack_LICH(enc_bits, lich_encoded);
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
-            conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
+            if(!signed_str)
+                conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
+            else //dont set the MSB is the stream is signed
+            {
+                conv_encode_stream_frame(&enc_bits[96], data, fn);
+            }
 
             //reorder bits
             reorder_bits(rf_bits, enc_bits);
@@ -83,19 +106,9 @@ int main(void)
             //randomize
             randomize_bits(rf_bits);
 
-            //send dummy symbols (debug)
-            /*float s=0.0;
-            for(uint8_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
-                fwrite((uint8_t*)&s, sizeof(float), 1, stdout);*/
-
 			//send frame data
 			send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
-
-            /*printf("\tDATA: ");
-            for(uint8_t i=0; i<16; i++)
-                printf("%02X", data[i]);
-            printf("\n");*/
 
             //increment the Frame Number
             fn = (fn + 1) % 0x8000;
@@ -103,11 +116,37 @@ int main(void)
             //increment the LICH counter
             lich_cnt = (lich_cnt + 1) % 6;
 
+            if(finished && signed_str) //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
+            {
+                uint8_t sig[64];
+
+                for(uint8_t i=0; i<sizeof(sig); i++) //test fill
+                    sig[i]=i;
+
+                //1 of 4
+                fn = 0x7FFC; //signature has to start at 0x7FFC to end at 0x7FFF (0xFFFF with EoT marker set)
+                for(uint8_t i=0; i<4; i++)
+                {
+                    frame_buff_cnt=0;
+                    send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+                    extract_LICH(lich, lich_cnt, &lsf); //continue with next LICH_CNT
+                    encode_LICH(lich_encoded, lich);
+                    unpack_LICH(enc_bits, lich_encoded);
+                    conv_encode_stream_frame(&enc_bits[96], &sig[i*16], fn);
+                    reorder_bits(rf_bits, enc_bits);
+                    randomize_bits(rf_bits);
+                    send_data(frame_buff, &frame_buff_cnt, rf_bits);
+                    fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+                    fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
+                    lich_cnt = (lich_cnt + 1) % 6;
+                }
+            }
+
             //debug-only
-			#ifdef FN60_DEBUG
+            #ifdef FN60_DEBUG
             if(fn==6*10)
                 return 0;
-			#endif
+            #endif
         }
         else //LSF
         {
@@ -136,11 +175,6 @@ int main(void)
             frame_buff_cnt=0;
 			send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
-
-            //send dummy symbols (debug)
-            /*float s=0.0;
-            for(uint8_t i=0; i<184; i++) //40ms * 4800 - 8 (syncword)
-                write((uint8_t*)&s, sizeof(float), 1, stdout);*/
 
             /*printf("DST: ");
             for(uint8_t i=0; i<6; i++)
