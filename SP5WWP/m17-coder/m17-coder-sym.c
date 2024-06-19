@@ -4,7 +4,7 @@
 #include <string.h>
 
 //libm17
-#include <m17.h>
+#include "../../libm17/m17.h"
 //micro-ecc
 #include "../../micro-ecc/uECC.h"
 
@@ -29,14 +29,13 @@ uint8_t finished=0;
 //used for signatures
 uint8_t digest[16]={0};             //16-byte field for the stream digest
 uint8_t signed_str=0;               //is the stream supposed to be signed?
+uint8_t priv_key[32]={0};           //private key
+uint8_t sig[64]={0};                //ECDSA signature
 
 //main routine
 int main(void)
 {
-    //debug
-    //printf("%06X\n", golay24_encode(1)); //golay encoder codeword test
-    //printf("%d -> %d -> %d\n", 1, intrl_seq[1], intrl_seq[intrl_seq[1]]); //interleaver bijective reciprocality test, f(f(x))=x
-    //return 0;
+    const struct uECC_Curve_t* curve = uECC_secp256r1();
 
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
     if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
@@ -118,12 +117,12 @@ int main(void)
 
             if(finished && signed_str) //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
             {
-                uint8_t sig[64];
+                for(uint8_t i=0; i<sizeof(priv_key); i++) //test fill
+                    priv_key[i]=i;
 
-                for(uint8_t i=0; i<sizeof(sig); i++) //test fill
-                    sig[i]=i;
+                uECC_sign(priv_key, digest, sizeof(digest), sig, curve);
 
-                //1 of 4
+                //4 frames with 512-bit signature
                 fn = 0x7FFC; //signature has to start at 0x7FFC to end at 0x7FFF (0xFFFF with EoT marker set)
                 for(uint8_t i=0; i<4; i++)
                 {
