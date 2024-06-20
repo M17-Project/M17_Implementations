@@ -129,16 +129,16 @@ void parse_raw_key_string(uint8_t* dest, const char* inp)
         for(uint8_t i=0; i<len; i+=2)
         {
             if(inp[i]>='a')
-                dest[i/2]|=(inp[i]-'a')*0x10;
+                dest[i/2]|=(inp[i]-'a'+10)*0x10;
             else if(inp[i]>='A')
-                dest[i/2]|=(inp[i]-'A')*0x10;
+                dest[i/2]|=(inp[i]-'A'+10)*0x10;
             else if(inp[i]>='0')
                 dest[i/2]|=(inp[i]-'0')*0x10;
             
             if(inp[i+1]>='a')
-                dest[i/2]|=inp[i+1]-'a';
+                dest[i/2]|=inp[i+1]-'a'+10;
             else if(inp[i+1]>='A')
-                dest[i/2]|=inp[i+1]-'A';
+                dest[i/2]|=inp[i+1]-'A'+10;
             else if(inp[i+1]>='0')
                 dest[i/2]|=inp[i+1]-'0';
         }
@@ -146,25 +146,25 @@ void parse_raw_key_string(uint8_t* dest, const char* inp)
     else
     {
         if(inp[0]>='a')
-            dest[0]|=inp[0]-'a';
+            dest[0]|=inp[0]-'a'+10;
         else if(inp[0]>='A')
-            dest[0]|=inp[0]-'A';
+            dest[0]|=inp[0]-'A'+10;
         else if(inp[0]>='0')
             dest[0]|=inp[0]-'0';
 
         for(uint8_t i=1; i<len-1; i+=2)
         {
             if(inp[i]>='a')
-                dest[i/2+1]|=(inp[i]-'a')*0x10;
+                dest[i/2+1]|=(inp[i]-'a'+10)*0x10;
             else if(inp[i]>='A')
-                dest[i/2+1]|=(inp[i]-'A')*0x10;
+                dest[i/2+1]|=(inp[i]-'A'+10)*0x10;
             else if(inp[i]>='0')
                 dest[i/2+1]|=(inp[i]-'0')*0x10;
             
             if(inp[i+1]>='a')
-                dest[i/2+1]|=inp[i+1]-'a';
+                dest[i/2+1]|=inp[i+1]-'a'+10;
             else if(inp[i+1]>='A')
-                dest[i/2+1]|=inp[i+1]-'A';
+                dest[i/2+1]|=inp[i+1]-'A'+10;
             else if(inp[i+1]>='0')
                 dest[i/2+1]|=inp[i+1]-'0';
         }
