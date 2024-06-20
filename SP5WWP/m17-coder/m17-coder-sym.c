@@ -5,7 +5,7 @@
 #include <time.h>
 
 //libm17
-#include <m17.h>
+#include "../../libm17/m17.h"
 //tinier-aes
 #include "../../tinier-aes/aes.h"
 
@@ -35,7 +35,6 @@ time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
 //Scrambler
 uint8_t scr_bytes[16];
 uint8_t scrambler_pn[128];
-uint32_t scrambler_key=0;
 uint32_t scrambler_seed=0;
 int8_t scrambler_subtype = -1;
 
@@ -43,7 +42,7 @@ int8_t scrambler_subtype = -1;
 uint8_t debug_mode=0;
 
 //scrambler pn sequence generation
-void scrambler_sequence_generator ()
+void scrambler_sequence_generator()
 {
   int i = 0;
   uint32_t lfsr, bit;
@@ -62,7 +61,7 @@ void scrambler_sequence_generator ()
   //TODO: Set Frame Type based on scrambler_subtype value
   if (debug_mode > 1)
   {
-    fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_key, lfsr, scrambler_subtype);
+    fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_seed, lfsr, scrambler_subtype);
     fprintf (stderr, "\n pN: ");
   }
   
@@ -110,55 +109,66 @@ void scrambler_sequence_generator ()
 void usage()
 {
     fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "-K - AES Encryption Hex String (-K 7777777777777777777777777777777777777777777777777777777777777777),\n");
-    fprintf(stderr, "-F - AES Encryption From File (-F aeskey.txt),\n");
-    fprintf(stderr, "-k - Scrambler Encryption Hex String (-k 123456),\n");
-    fprintf(stderr, "-D - Debug Mode,\n");
+    fprintf(stderr, "-K - AES encryption key (-K [hex_string|text_file]),\n");
+    fprintf(stderr, "-k - Scrambler encryption seed value (-k [hex_string]),\n");
+    fprintf(stderr, "-D - Debug mode,\n");
     fprintf(stderr, "-h - help / print usage,\n");
 }
 
 //convert a user string (as hex octets) into a uint8_t array for key
-void parse_raw_key_string (char * input)
+void parse_raw_key_string(uint8_t* dest, const char* inp)
 {
-    uint8_t * raw = key; //set pointer to the key array
+    uint16_t len = strlen(inp);
 
-    //since we want this as octets, get strlen value, then divide by two
-    uint16_t len = strlen((const char*)input);
+    if(len==0) return; //return silently and pretend nothing happened
 
-    //if zero is returned, just do two
-    if (len == 0) len = 2;
+    memset(dest, 0, len/2); //one character represents half of a byte
 
-    //if odd number, then user didn't pass complete octets, but just add one to len value to make it even
-    if (len&1) len++;
-
-    //divide by two to get octet len
-    len /= 2;
-
-    //sanity check, maximum len should not exceed 32 for an AES key
-    if (len > 32) len = 32;
-
-    char octet_char[3];
-    octet_char[2] = 0;
-    uint16_t k = 0;
-    uint16_t i = 0;
-
-    //debug
-    // fprintf (stderr, "\nRaw Len: %d; Raw Octets:", len);
-
-    for (i = 0; i < len; i++)
+    if(!(len%2)) //length even?
     {
-        strncpy (octet_char, input+k, 2);
-        octet_char[2] = 0;
-        sscanf (octet_char, "%hhX", &raw[i]);
-
-        //debug
-        // fprintf (stderr, " (%s)", octet_char);
-        // fprintf (stderr, " %02X", raw[i]);
-
-        k += 2;
+        for(uint8_t i=0; i<len; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2]|=(inp[i]-'a')*0x10;
+            else if(inp[i]>='A')
+                dest[i/2]|=(inp[i]-'A')*0x10;
+            else if(inp[i]>='0')
+                dest[i/2]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2]|=inp[i+1]-'a';
+            else if(inp[i+1]>='A')
+                dest[i/2]|=inp[i+1]-'A';
+            else if(inp[i+1]>='0')
+                dest[i/2]|=inp[i+1]-'0';
+        }
     }
+    else
+    {
+        if(inp[0]>='a')
+            dest[0]|=inp[0]-'a';
+        else if(inp[0]>='A')
+            dest[0]|=inp[0]-'A';
+        else if(inp[0]>='0')
+            dest[0]|=inp[0]-'0';
 
-    // fprintf (stderr, "\n");
+        for(uint8_t i=1; i<len-1; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2+1]|=(inp[i]-'a')*0x10;
+            else if(inp[i]>='A')
+                dest[i/2+1]|=(inp[i]-'A')*0x10;
+            else if(inp[i]>='0')
+                dest[i/2+1]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2+1]|=inp[i+1]-'a';
+            else if(inp[i+1]>='A')
+                dest[i/2+1]|=inp[i+1]-'A';
+            else if(inp[i+1]>='0')
+                dest[i/2+1]|=inp[i+1]-'0';
+        }
+    }
 }
 
 //main routine
@@ -182,73 +192,107 @@ int main(int argc, char* argv[])
             {
                 if(argv[i][1]=='K') //-K - AES Encryption
                 {
-
-                    parse_raw_key_string (argv[i+1]);
-
-                    fprintf (stderr, "AES Key:");
-                    for (uint8_t i = 0; i < 32; i++)
+                    if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
                     {
-                        if (i == 16)
-                            fprintf (stderr, "\n        ");
-                        fprintf (stderr, " %02X", key[i]);
+                        char fname[128]={'\0'}; //output file
+                        if(strlen(&argv[i+1][0])>0)
+                            memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
+                        else
+                        {
+                            fprintf(stderr, "Invalid filename. Exiting...\n");
+                            return -1;
+                        }
+
+                        FILE* fp;
+                        char source_str[64];
+
+                        fp = fopen(fname, "r");
+                        if(!fp)
+                        {
+                            fprintf(stderr, "Failed to load file %s.\n", fname);
+                            return -1;
+                        }
+
+                        //size check
+                        size_t len = fread(source_str, 1, 64, fp); //TODO: check length
+                        fclose(fp);
+
+                        if(len==256/4)
+                            fprintf(stderr, "AES256");
+                        else if(len==192/4)
+                            fprintf(stderr, "AES192");
+                        else if(len==128/4)
+                            fprintf(stderr, "AES128");
+                        else
+                        {
+                            fprintf(stderr, "Invalid key length.\n");
+                            return -1;
+                        }
+
+                        parse_raw_key_string(key, source_str);
+
+                        fprintf(stderr, " key:");
+                        for(uint8_t i=0; i<len/2; i++)
+                        {
+                            if(i==16)
+                                fprintf(stderr, "\n           ");
+                            fprintf(stderr, " %02X", key[i]);
+                        }
+                        fprintf(stderr, "\n");
                     }
-                    fprintf (stderr, "\n");
-
-
-                    encryption=2; //AES key was passed
-                }
-                else if(argv[i][1]=='F') //-F - AES Encryption (key from file)
-                {
-                    char fname[128]={'\0'}; //output file
-                    if(strlen(&argv[i+1][0])>0)
-                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
                     else
                     {
-                        fprintf(stderr, "Invalid filename. Exiting...\n");
-                        return -1;
+                        //size check
+                        size_t len = strlen(argv[i+1]);
+
+                        if(len==256/4)
+                            fprintf(stderr, "AES256");
+                        else if(len==192/4)
+                            fprintf(stderr, "AES192");
+                        else if(len==128/4)
+                            fprintf(stderr, "AES128");
+                        else
+                        {
+                            fprintf(stderr, "Invalid key length.\n");
+                            return -1;
+                        }
+
+                        parse_raw_key_string(key, argv[i+1]);
+
+                        fprintf(stderr, " key:");
+                        for(uint8_t i=0; i<len/2; i++)
+                        {
+                            if(i==16)
+                                fprintf(stderr, "\n           ");
+                            fprintf(stderr, " %02X", key[i]);
+                        }
+                        fprintf(stderr, "\n");
                     }
-
-                    FILE *fp;
-                    char *source_str;
-
-                    fp = fopen(fname, "r");
-                    if (!fp)
-                    {
-                        fprintf(stderr, "Failed to load file %s.\n", fname);
-                        return -1;
-                    }
-                    source_str = (char*)malloc(64);
-                    fread(source_str, 1, 64, fp);
-                    fclose(fp);
-
-                    parse_raw_key_string (source_str);
-
-                    free(source_str);
-
-                    fprintf (stderr, "AES Key:");
-                    for (uint8_t i = 0; i < 32; i++)
-                    {
-                        if (i == 16)
-                            fprintf (stderr, "\n        ");
-                        fprintf (stderr, " %02X", key[i]);
-                    }
-                    fprintf (stderr, "\n");
-
 
                     encryption=2; //AES key was passed
                 }
                 else if(argv[i][1]=='k') //-k - Scrambler Encryption
                 {
-                    
-                    parse_raw_key_string (argv[i+1]);
-                    scrambler_key = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
+                    //length check
+                    uint8_t length=strlen(argv[i+1]);
+                    if(length==0 || length>24/4) //24-bit is the largest seed value
+                    {
+                        fprintf(stderr, "Invalid key length.\n");
+                        return -1;
+                    }
 
-                    fprintf (stderr, "Scrambler Key: 0x%06X;", scrambler_key);
+                    parse_raw_key_string(key, argv[i+1]);
+                    scrambler_seed = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
 
-                    scrambler_seed = scrambler_key; //initialize the seed with the key value
+                    if(length<=2)
+                        fprintf(stderr, "Scrambler key: 0x%02X (8-bit)\n", scrambler_seed>>16);
+                    else if(length<=4)
+                        fprintf(stderr, "Scrambler key: 0x%04X (16-bit)\n", scrambler_seed>>8);
+                    else
+                        fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_seed);
+                    //fprintf(stderr, "Scrambler key: %06X\n", scrambler_seed);
 
                     encryption=1; //Scrambler key was passed
-
                 }
                 else if(argv[i][1]=='D') //-D - Debug Mode
                 {
