@@ -4,7 +4,9 @@
 #include <string.h>
 
 //libm17
-#include <m17.h>
+#include "../../libm17/m17.h"
+//micro-ecc
+#include "../../micro-ecc/uECC.h"
 
 //settings
 uint8_t decode_callsigns=0;
@@ -33,6 +35,80 @@ uint8_t frame_data[19];             //decoded frame data, 144 bits (16+128), plu
 uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
 uint8_t pushed;                     //counter for pushed symbols
+
+//used for signatures
+uint8_t digest[16]={0};             //16-byte field for the stream digest
+uint8_t signed_str=0;               //is the stream signed?
+uint8_t pub_key[64]={0};            //public key
+uint8_t sig[64]={0};                //ECDSA signature
+
+void usage(void)
+{
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "-c - Display decoded callsigns,\n");
+    fprintf(stderr, "-v - Display Viterbi error metrics,\n");
+    fprintf(stderr, "-m - Display META fields,\n");
+    fprintf(stderr, "-l - Display LSF CRC checks,\n");
+    fprintf(stderr, "-d - Set syncword detection threshold (decimal value),\n");
+    fprintf(stderr, "-s - Public key for ECDSA signature, 64 bytes (-s [hex_string|key_file]),\n");
+    fprintf(stderr, "-h - help / print usage\n");
+}
+
+//convert a user string (as hex octets) into a uint8_t array for key
+void parse_raw_key_string(uint8_t* dest, const char* inp)
+{
+    uint16_t len = strlen(inp);
+
+    if(len==0) return; //return silently and pretend nothing happened
+
+    memset(dest, 0, len/2); //one character represents half of a byte
+
+    if(!(len%2)) //length even?
+    {
+        for(uint8_t i=0; i<len; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2]|=inp[i+1]-'0';
+        }
+    }
+    else
+    {
+        if(inp[0]>='a')
+            dest[0]|=inp[0]-'a'+10;
+        else if(inp[0]>='A')
+            dest[0]|=inp[0]-'A'+10;
+        else if(inp[0]>='0')
+            dest[0]|=inp[0]-'0';
+
+        for(uint8_t i=1; i<len-1; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2+1]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2+1]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2+1]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2+1]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2+1]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2+1]|=inp[i+1]-'0';
+        }
+    }
+}
 
 int main(int argc, char* argv[])
 {
@@ -71,15 +147,37 @@ int main(int argc, char* argv[])
                 i++;
             }
 
+            if(!strcmp(argv[i], "-s"))
+            {
+                uint16_t len=strlen(argv[i+1]);
+
+                if(len!=64*2) //for secp256r1
+                {
+                    fprintf(stderr, "Invalid private key length. Exiting...\n");
+                    return -1;
+                }
+
+                parse_raw_key_string(pub_key, argv[i+1]);
+
+                i++;
+            }
+
             if(!strcmp(argv[i], "-l"))
             {
                 show_lsf_crc=1;
                 printf("Show LSF CRC: ON\n");
             }
+
+            if(!strcmp(argv[i], "-h"))
+            {
+                usage();
+                return 0;
+            }            
         }
     }
 
     printf("Awaiting samples...\n");
+    const struct uECC_Curve_t* curve = uECC_secp256r1();
 
     while(1)
     {
@@ -164,6 +262,21 @@ int main(int argc, char* argv[])
                     //send codec2 stream to stdout
                     //fwrite(&frame_data[3], 16, 1, stdout);
 
+                    //if the stream is signed
+                    if(signed_str && fn<0x7FFC)
+                    {
+                        //if thats the first frame (fn=0)
+                        if(fn==0)
+                            memcpy(digest, &frame_data[3], sizeof(digest));
+
+                        for(uint8_t i=0; i<sizeof(digest); i++)
+                            digest[i]^=frame_data[3+i];
+                        uint8_t tmp=digest[0];
+                        for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                            digest[i]=digest[i+1];
+                        digest[sizeof(digest)-1]=tmp;
+                    }
+
                     //extract LICH
                     for(uint16_t i=0; i<96; i++)
                     {
@@ -244,7 +357,12 @@ int main(int argc, char* argv[])
                             printf("UNK, ");
                         printf("CAN: %d", (type>>7)&0xF);
                         if((type>>11)&1)
+                        {
                             printf(", SIGNED");
+                            signed_str=1;
+                        }
+                        else
+                            signed_str=0;
                         printf(") ");
 
                         //META
@@ -268,6 +386,40 @@ int main(int argc, char* argv[])
                                 printf("LSF_CRC_OK");
                         }
                         printf("\n");
+                    }
+
+                    //if the contents of the payload is now digital signature, not data/voice
+                    if(fn>=0x7FFC && signed_str)
+                    {
+                        memcpy(&sig[((fn&0x7FFF)-0x7FFC)*16], &frame_data[3], 16);
+                        
+                        if(fn==(0x7FFF|0x8000))
+                        {
+                            //dump data
+                            /*printf("Signature: ");
+                            for(uint8_t i=0; i<sizeof(sig); i++)
+                                printf("%02X", sig[i]);
+                            printf("\n");
+
+                            printf("Key: ");
+                            for(uint8_t i=0; i<sizeof(pub_key); i++)
+                                printf("%02X", pub_key[i]);
+                            printf("\n");
+
+                            printf("Digest: ");
+                            for(uint8_t i=0; i<sizeof(digest); i++)
+                                printf("%02X", digest[i]);
+                            printf("\n");*/
+
+                            if(uECC_verify(pub_key, digest, sizeof(digest), sig, curve))
+                            {
+                                printf("Signature OK\n");
+                            }
+                            else
+                            {
+                                printf("Signature invalid\n");
+                            }
+                        }
                     }
 
                     expected_next_fn = (fn + 1) % 0x8000;
@@ -344,7 +496,12 @@ int main(int argc, char* argv[])
                         printf("UNK, ");
                     printf("CAN: %d", (type>>7)&0xF);
                     if((type>>11)&1)
+                    {
                         printf(", SIGNED");
+                        signed_str=1;
+                    }
+                    else
+                        signed_str=0;
                     printf(") ");
 
                     //META

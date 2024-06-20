@@ -32,9 +32,108 @@ uint8_t signed_str=0;               //is the stream supposed to be signed?
 uint8_t priv_key[32]={0};           //private key
 uint8_t sig[64]={0};                //ECDSA signature
 
-//main routine
-int main(void)
+void usage(void)
 {
+    fprintf(stderr, "Usage:\n");
+    fprintf(stderr, "-s - Private key for ECDSA signature, 32 bytes (-s [hex_string|key_file]),\n");
+    fprintf(stderr, "-h - help / print usage\n");
+}
+
+//convert a user string (as hex octets) into a uint8_t array for key
+void parse_raw_key_string(uint8_t* dest, const char* inp)
+{
+    uint16_t len = strlen(inp);
+
+    if(len==0) return; //return silently and pretend nothing happened
+
+    memset(dest, 0, len/2); //one character represents half of a byte
+
+    if(!(len%2)) //length even?
+    {
+        for(uint8_t i=0; i<len; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2]|=inp[i+1]-'0';
+        }
+    }
+    else
+    {
+        if(inp[0]>='a')
+            dest[0]|=inp[0]-'a'+10;
+        else if(inp[0]>='A')
+            dest[0]|=inp[0]-'A'+10;
+        else if(inp[0]>='0')
+            dest[0]|=inp[0]-'0';
+
+        for(uint8_t i=1; i<len-1; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2+1]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2+1]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2+1]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2+1]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2+1]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2+1]|=inp[i+1]-'0';
+        }
+    }
+}
+
+//main routine
+int main(int argc, char* argv[])
+{
+    //scan command line options for input data (purely optional)
+    if(argc>=1)
+    {
+        for(uint8_t i=1; i<argc; i++)
+        {
+            if(argv[i][0]=='-')
+            {
+                if(argv[i][1]=='s') //-s - private key for digital signature
+                {
+                    uint16_t len=strlen(argv[i+1]);
+
+                    if(len!=32*2) //for secp256r1
+                    {
+                        fprintf(stderr, "Invalid private key length. Exiting...\n");
+                        return -1;
+                    }
+
+                    parse_raw_key_string(priv_key, argv[i+1]);
+
+                    i++;
+                }
+                else if(argv[i][1]=='h') //-h - help / usage
+                {
+                    usage();
+                    return -1;
+                }
+                else
+                {
+                    fprintf(stderr, "Unknown param detected. Exiting...\n");
+                    usage();
+                    return -1;
+                }
+            }
+        }
+    }
+
     const struct uECC_Curve_t* curve = uECC_secp256r1();
 
     if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
@@ -117,9 +216,6 @@ int main(void)
 
             if(finished && signed_str) //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
             {
-                for(uint8_t i=0; i<sizeof(priv_key); i++) //test fill
-                    priv_key[i]=i;
-
                 uECC_sign(priv_key, digest, sizeof(digest), sig, curve);
 
                 //4 frames with 512-bit signature
@@ -139,6 +235,22 @@ int main(void)
                     fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
                     lich_cnt = (lich_cnt + 1) % 6;
                 }
+
+                //dump data
+                /*fprintf(stderr, "Digest: ");
+                for(uint8_t i=0; i<sizeof(digest); i++)
+                    fprintf(stderr, "%02X", digest[i]);
+                fprintf(stderr, "\n");
+
+                fprintf(stderr, "Key: ");
+                for(uint8_t i=0; i<sizeof(priv_key); i++)
+                    fprintf(stderr, "%02X", priv_key[i]);
+                fprintf(stderr, "\n");  
+
+                fprintf(stderr, "Signature: ");
+                for(uint8_t i=0; i<sizeof(sig); i++)
+                    fprintf(stderr, "%02X", sig[i]);
+                fprintf(stderr, "\n");*/              
             }
 
             //debug-only
