@@ -247,6 +247,8 @@ int main(int argc, char* argv[])
                     uint32_t e=viterbi_decode_punctured(frame_data, enc_data, puncture_pattern_2, 272, 12);
 
                     uint16_t fn = (frame_data[1] << 8) | frame_data[2];
+                    uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
+                    signed_str=(type>>11)&1;
 
                     //dump data - first byte is empty
                     printf("FN: %04X PLD: ", fn);
@@ -265,10 +267,6 @@ int main(int argc, char* argv[])
                     //if the stream is signed
                     if(signed_str && fn<0x7FFC)
                     {
-                        //if thats the first frame (fn=0)
-                        if(fn==0)
-                            memcpy(digest, &frame_data[3], sizeof(digest));
-
                         for(uint8_t i=0; i<sizeof(digest); i++)
                             digest[i]^=frame_data[3+i];
                         uint8_t tmp=digest[0];
@@ -326,7 +324,6 @@ int main(int argc, char* argv[])
                         }
 
                         //TYPE
-                        uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
                         printf("TYPE: %04X (", type);
                         if(type&&1)
                             printf("STREAM: ");
@@ -356,13 +353,10 @@ int main(int argc, char* argv[])
                         else
                             printf("UNK, ");
                         printf("CAN: %d", (type>>7)&0xF);
-                        if((type>>11)&1)
+                        if(signed_str)
                         {
                             printf(", SIGNED");
-                            signed_str=1;
                         }
-                        else
-                            signed_str=0;
                         printf(") ");
 
                         //META
@@ -396,9 +390,9 @@ int main(int argc, char* argv[])
                         if(fn==(0x7FFF|0x8000))
                         {
                             //dump data
-                            /*printf("Signature: ");
-                            for(uint8_t i=0; i<sizeof(sig); i++)
-                                printf("%02X", sig[i]);
+                            /*printf("DEC-Digest: ");
+                            for(uint8_t i=0; i<sizeof(digest); i++)
+                                printf("%02X", digest[i]);
                             printf("\n");
 
                             printf("Key: ");
@@ -406,9 +400,9 @@ int main(int argc, char* argv[])
                                 printf("%02X", pub_key[i]);
                             printf("\n");
 
-                            printf("Digest: ");
-                            for(uint8_t i=0; i<sizeof(digest); i++)
-                                printf("%02X", digest[i]);
+                            printf("Signature: ");
+                            for(uint8_t i=0; i<sizeof(sig); i++)
+                                printf("%02X", sig[i]);
                             printf("\n");*/
 
                             if(uECC_verify(pub_key, digest, sizeof(digest), sig, curve))

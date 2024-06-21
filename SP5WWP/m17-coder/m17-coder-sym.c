@@ -156,18 +156,6 @@ int main(int argc, char* argv[])
 
         memcpy(data, next_data, sizeof(data));
 
-        //calculate stream digest
-        signed_str=(lsf.type[0]>>3)&1;
-        if(signed_str) //signed stream? check bit 11 of TYPE
-        {
-            for(uint8_t i=0; i<sizeof(digest); i++)
-                digest[i]^=data[i];
-            uint8_t tmp=digest[0];
-            for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                digest[i]=digest[i+1];
-            digest[sizeof(digest)-1]=tmp;
-        }
-
         //we could discard the data we already have
         if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
         if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
@@ -191,11 +179,24 @@ int main(int argc, char* argv[])
             unpack_LICH(enc_bits, lich_encoded);
 
             //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
+            signed_str=(lsf.type[0]>>3)&1;
             if(!signed_str)
                 conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
-            else //dont set the MSB is the stream is signed
+            else
             {
+                //dont set the MSB is the stream is signed
                 conv_encode_stream_frame(&enc_bits[96], data, fn);
+
+                //update the stream digest
+                if(signed_str) //signed stream? check bit 11 of TYPE
+                {
+                    for(uint8_t i=0; i<sizeof(digest); i++)
+                        digest[i]^=data[i];
+                    uint8_t tmp=digest[0];
+                    for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                        digest[i]=digest[i+1];
+                    digest[sizeof(digest)-1]=tmp;
+                }
             }
 
             //reorder bits
@@ -237,7 +238,7 @@ int main(int argc, char* argv[])
                 }
 
                 //dump data
-                /*fprintf(stderr, "Digest: ");
+                /*fprintf(stderr, "ENC-Digest: ");
                 for(uint8_t i=0; i<sizeof(digest); i++)
                     fprintf(stderr, "%02X", digest[i]);
                 fprintf(stderr, "\n");
@@ -245,12 +246,12 @@ int main(int argc, char* argv[])
                 fprintf(stderr, "Key: ");
                 for(uint8_t i=0; i<sizeof(priv_key); i++)
                     fprintf(stderr, "%02X", priv_key[i]);
-                fprintf(stderr, "\n");  
+                fprintf(stderr, "\n");
 
                 fprintf(stderr, "Signature: ");
                 for(uint8_t i=0; i<sizeof(sig); i++)
                     fprintf(stderr, "%02X", sig[i]);
-                fprintf(stderr, "\n");*/              
+                fprintf(stderr, "\n");*/
             }
 
             //debug-only

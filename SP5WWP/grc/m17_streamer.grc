@@ -75,6 +75,28 @@ blocks:
     coordinate: [696, 292.0]
     rotation: 0
     state: true
+- name: blocks_file_source_0
+  id: blocks_file_source
+  parameters:
+    affinity: ''
+    alias: ''
+    begin_tag: pmt.PMT_NIL
+    comment: Codec 2 encoded raw .bin file (with no header)
+    file: /media/sf_vm_share/c2_1.bin
+    length: '0'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    offset: '0'
+    repeat: 'False'
+    type: byte
+    vlen: '16'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [16, 532.0]
+    rotation: 0
+    state: disabled
 - name: blocks_stream_mux_0
   id: blocks_stream_mux
   parameters:
@@ -195,7 +217,7 @@ blocks:
     bus_structure: null
     coordinate: [112, 452.0]
     rotation: 0
-    state: true
+    state: enabled
 - name: blocks_vector_source_x_0_2_0
   id: blocks_vector_source_x
   parameters:
@@ -217,6 +239,24 @@ blocks:
     coordinate: [112, 372.0]
     rotation: 0
     state: true
+- name: blocks_vector_to_stream_0
+  id: blocks_vector_to_stream
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_items: '16'
+    type: byte
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [208, 576.0]
+    rotation: 0
+    state: disabled
 - name: note_0
   id: note
   parameters:
@@ -284,6 +324,7 @@ blocks:
     state: true
 
 connections:
+- [blocks_file_source_0, '0', blocks_vector_to_stream_0, '0']
 - [blocks_stream_mux_0, '0', blocks_throttle2_0, '0']
 - [blocks_throttle2_0, '0', blocks_file_sink_0, '0']
 - [blocks_vector_source_x_0, '0', blocks_stream_mux_0, '0']
@@ -291,6 +332,7 @@ connections:
 - [blocks_vector_source_x_0_1, '0', blocks_stream_mux_0, '2']
 - [blocks_vector_source_x_0_2, '0', blocks_stream_mux_0, '4']
 - [blocks_vector_source_x_0_2_0, '0', blocks_stream_mux_0, '3']
+- [blocks_vector_to_stream_0, '0', blocks_stream_mux_0, '4']
 
 metadata:
   file_format: 1
