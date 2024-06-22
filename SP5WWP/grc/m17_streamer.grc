@@ -96,7 +96,7 @@ blocks:
     bus_structure: null
     coordinate: [16, 532.0]
     rotation: 0
-    state: disabled
+    state: enabled
 - name: blocks_stream_mux_0
   id: blocks_stream_mux
   parameters:
@@ -136,7 +136,7 @@ blocks:
     bus_structure: null
     coordinate: [536, 300.0]
     rotation: 0
-    state: true
+    state: enabled
 - name: blocks_vector_source_x_0
   id: blocks_vector_source_x
   parameters:
@@ -217,7 +217,7 @@ blocks:
     bus_structure: null
     coordinate: [112, 452.0]
     rotation: 0
-    state: enabled
+    state: disabled
 - name: blocks_vector_source_x_0_2_0
   id: blocks_vector_source_x
   parameters:
@@ -256,7 +256,7 @@ blocks:
     bus_structure: null
     coordinate: [208, 576.0]
     rotation: 0
-    state: disabled
+    state: enabled
 - name: note_0
   id: note
   parameters:

@@ -23,14 +23,16 @@ uint32_t frame_buff_cnt;
 uint8_t data[16], next_data[16];    //raw payload, packed bits
 uint16_t fn=0;                      //16-bit Frame Number (for the stream mode)
 uint8_t lich_cnt=0;                 //0..5 LICH counter
-uint8_t got_lsf=0;                  //have we filled the LSF struct yet?
-uint8_t finished=0;
+uint8_t got_lsf=0;                  //have we transmitted the LSF yet?
+uint8_t finished=0;                 //no more data at stdin?
 
 //used for signatures
 uint8_t digest[16]={0};             //16-byte field for the stream digest
 uint8_t signed_str=0;               //is the stream supposed to be signed?
 uint8_t priv_key[32]={0};           //private key
 uint8_t sig[64]={0};                //ECDSA signature
+
+int dummy=0;                        //dummy var to make compiler quieter
 
 void usage(void)
 {
@@ -136,138 +138,24 @@ int main(int argc, char* argv[])
 
     const struct uECC_Curve_t* curve = uECC_secp256r1();
 
-    if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-    if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
-    if(fread(next_data, 16, 1, stdin)<1) finished=1;
+    //send out the preamble
+    frame_buff_cnt=0;
+	send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+    fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+
+    //read data
+    dummy=fread(&(lsf.dst), 6, 1, stdin);
+    dummy=fread(&(lsf.src), 6, 1, stdin);
+    dummy=fread(&(lsf.type), 2, 1, stdin);
+    dummy=fread(&(lsf.meta), 14, 1, stdin);
+    dummy=fread(data, 16, 1, stdin);
 
     while(!finished)
     {
-        if(lich_cnt == 0)
+        if(!got_lsf)
         {
-            lsf = next_lsf;
-
-            //calculate LSF CRC
-            uint16_t ccrc=LSF_CRC(&lsf);
-            lsf.crc[0]=ccrc>>8;
-            lsf.crc[1]=ccrc&0xFF;
-        }
-
-        memcpy(data, next_data, sizeof(data));
-
-        //we could discard the data we already have
-        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
-        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
-        if(fread(next_data, 16, 1, stdin)<1) finished=1;
-
-        if(got_lsf) //stream frames
-        {
-            //send stream frame syncword
-            frame_buff_cnt=0;
-            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
-
-            //extract LICH from the whole LSF
-            extract_LICH(lich, lich_cnt, &lsf);
-
-            //encode the LICH
-            encode_LICH(lich_encoded, lich);
-
-            //unpack LICH (12 bytes)
-            unpack_LICH(enc_bits, lich_encoded);
-
-            //encode the rest of the frame (starting at bit 96 - 0..95 are filled with LICH)
-            signed_str=(lsf.type[0]>>3)&1;
-            if(!signed_str)
-                conv_encode_stream_frame(&enc_bits[96], data, finished ? (fn | 0x8000) : fn);
-            else
-            {
-                //dont set the MSB is the stream is signed
-                conv_encode_stream_frame(&enc_bits[96], data, fn);
-
-                //update the stream digest
-                if(signed_str) //signed stream? check bit 11 of TYPE
-                {
-                    for(uint8_t i=0; i<sizeof(digest); i++)
-                        digest[i]^=data[i];
-                    uint8_t tmp=digest[0];
-                    for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                        digest[i]=digest[i+1];
-                    digest[sizeof(digest)-1]=tmp;
-                }
-            }
-
-            //reorder bits
-            reorder_bits(rf_bits, enc_bits);
-
-            //randomize
-            randomize_bits(rf_bits);
-
-			//send frame data
-			send_data(frame_buff, &frame_buff_cnt, rf_bits);
-            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
-
-            //increment the Frame Number
-            fn = (fn + 1) % 0x8000;
-
-            //increment the LICH counter
-            lich_cnt = (lich_cnt + 1) % 6;
-
-            if(finished && signed_str) //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
-            {
-                uECC_sign(priv_key, digest, sizeof(digest), sig, curve);
-
-                //4 frames with 512-bit signature
-                fn = 0x7FFC; //signature has to start at 0x7FFC to end at 0x7FFF (0xFFFF with EoT marker set)
-                for(uint8_t i=0; i<4; i++)
-                {
-                    frame_buff_cnt=0;
-                    send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
-                    extract_LICH(lich, lich_cnt, &lsf); //continue with next LICH_CNT
-                    encode_LICH(lich_encoded, lich);
-                    unpack_LICH(enc_bits, lich_encoded);
-                    conv_encode_stream_frame(&enc_bits[96], &sig[i*16], fn);
-                    reorder_bits(rf_bits, enc_bits);
-                    randomize_bits(rf_bits);
-                    send_data(frame_buff, &frame_buff_cnt, rf_bits);
-                    fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
-                    fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
-                    lich_cnt = (lich_cnt + 1) % 6;
-                }
-
-                //dump data
-                /*fprintf(stderr, "ENC-Digest: ");
-                for(uint8_t i=0; i<sizeof(digest); i++)
-                    fprintf(stderr, "%02X", digest[i]);
-                fprintf(stderr, "\n");
-
-                fprintf(stderr, "Key: ");
-                for(uint8_t i=0; i<sizeof(priv_key); i++)
-                    fprintf(stderr, "%02X", priv_key[i]);
-                fprintf(stderr, "\n");
-
-                fprintf(stderr, "Signature: ");
-                for(uint8_t i=0; i<sizeof(sig); i++)
-                    fprintf(stderr, "%02X", sig[i]);
-                fprintf(stderr, "\n");*/
-            }
-
-            //debug-only
-            #ifdef FN60_DEBUG
-            if(fn==6*10)
-                return 0;
-            #endif
-        }
-        else //LSF
-        {
-            got_lsf=1;
-
-            //send out the preamble
-            frame_buff_cnt=0;
-			send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
-            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+            //debug
+            //fprintf(stderr, "LSF\n");
 
             //send LSF syncword
             frame_buff_cnt=0;
@@ -288,29 +176,149 @@ int main(int argc, char* argv[])
 			send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
 
-            /*printf("DST: ");
-            for(uint8_t i=0; i<6; i++)
-                printf("%02X", lsf.dst[i]);
-            printf(" SRC: ");
-            for(uint8_t i=0; i<6; i++)
-                printf("%02X", lsf.src[i]);
-            printf(" TYPE: ");
-            for(uint8_t i=0; i<2; i++)
-                printf("%02X", lsf.type[i]);
-            printf(" META: ");
-            for(uint8_t i=0; i<14; i++)
-                printf("%02X", lsf.meta[i]);
-            printf(" CRC: ");
-            for(uint8_t i=0; i<2; i++)
-                printf("%02X", lsf.crc[i]);
-			printf("\n");*/
-		}
+            //check the SIGNED STREAM flag
+            signed_str=(lsf.type[0]>>3)&1;
 
-        if(finished)
+            //set the flag
+            got_lsf=1;
+        }
+
+        //check if theres any more data
+        if(fread(&(next_lsf.dst), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.src), 6, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.type), 2, 1, stdin)<1) finished=1;
+        if(fread(&(next_lsf.meta), 14, 1, stdin)<1) finished=1;
+        if(fread(next_data, 16, 1, stdin)<1) finished=1;
+
+        if(!finished)
         {
+            //debug payload dump
+            /*fprintf(stderr, "ENC-Payload %04X: ", fn);
+            for(uint8_t i=0; i<sizeof(digest); i++)
+                fprintf(stderr, "%02X", data[i]);
+            fprintf(stderr, "\n");*/
+
+            //send frame
+            frame_buff_cnt=0;
+            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+            extract_LICH(lich, lich_cnt, &lsf);
+            encode_LICH(lich_encoded, lich);
+            unpack_LICH(enc_bits, lich_encoded);
+            conv_encode_stream_frame(&enc_bits[96], data, fn);
+            reorder_bits(rf_bits, enc_bits);
+            randomize_bits(rf_bits);
+            send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+            fn = (fn + 1) % 0x8000; //increment FN
+            lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
+
+            //update the stream digest if required
+            if(signed_str)
+            {
+                for(uint8_t i=0; i<sizeof(digest); i++)
+                    digest[i]^=data[i];
+                uint8_t tmp=digest[0];
+                for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                    digest[i]=digest[i+1];
+                digest[sizeof(digest)-1]=tmp;
+            }
+
+            //update LSF every 6 frames (superframe boundary)
+            if(fn>0 && lich_cnt==0)
+            {
+                lsf = next_lsf; 
+
+                //calculate LSF CRC
+                uint16_t ccrc=LSF_CRC(&lsf);
+                lsf.crc[0]=ccrc>>8;
+                lsf.crc[1]=ccrc&0xFF;
+            }
+
+            memcpy(data, next_data, 16);
+        }
+        else //send last frame(s)
+        {
+            //debug data dump
+            /*fprintf(stderr, "ENC-Payload %04X: ", fn);
+            for(uint8_t i=0; i<sizeof(digest); i++)
+                fprintf(stderr, "%02X", data[i]);
+            fprintf(stderr, "\n");*/
+
+            //send frame
+            frame_buff_cnt=0;
+            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+            extract_LICH(lich, lich_cnt, &lsf);
+            encode_LICH(lich_encoded, lich);
+            unpack_LICH(enc_bits, lich_encoded);
+            if(!signed_str)
+                conv_encode_stream_frame(&enc_bits[96], data, (fn | 0x8000));
+            else
+                conv_encode_stream_frame(&enc_bits[96], data, fn);
+            reorder_bits(rf_bits, enc_bits);
+            randomize_bits(rf_bits);
+            send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+
+            //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
+            if(signed_str)
+            {
+                //update digest
+                for(uint8_t i=0; i<sizeof(digest); i++)
+                    digest[i]^=data[i];
+                uint8_t tmp=digest[0];
+                for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                    digest[i]=digest[i+1];
+                digest[sizeof(digest)-1]=tmp;
+
+                //sign the digest
+                uECC_sign(priv_key, digest, sizeof(digest), sig, curve);
+
+                //4 frames with 512-bit signature
+                fn = 0x7FFC; //signature has to start at 0x7FFC to end at 0x7FFF (0xFFFF with EoT marker set)
+                for(uint8_t i=0; i<4; i++)
+                {
+                    //dump payload
+                    /*fprintf(stderr, "ENC-Payload %04X: ", fn);
+                    for(uint8_t i=0; i<sizeof(digest); i++)
+                        fprintf(stderr, "%02X", data[i]);
+                    fprintf(stderr, "\n");*/
+
+                    frame_buff_cnt=0;
+                    send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+                    extract_LICH(lich, lich_cnt, &lsf);
+                    encode_LICH(lich_encoded, lich);
+                    unpack_LICH(enc_bits, lich_encoded);
+                    conv_encode_stream_frame(&enc_bits[96], &sig[i*16], fn);
+                    reorder_bits(rf_bits, enc_bits);
+                    randomize_bits(rf_bits);
+                    send_data(frame_buff, &frame_buff_cnt, rf_bits);
+                    fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+                    fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
+                    lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
+                }
+
+                //dump data
+                /*fprintf(stderr, "ENC-Digest: ");
+                for(uint8_t i=0; i<sizeof(digest); i++)
+                    fprintf(stderr, "%02X", digest[i]);
+                fprintf(stderr, "\n");
+
+                fprintf(stderr, "Key: ");
+                for(uint8_t i=0; i<sizeof(priv_key); i++)
+                    fprintf(stderr, "%02X", priv_key[i]);
+                fprintf(stderr, "\n");
+
+                fprintf(stderr, "Signature: ");
+                for(uint8_t i=0; i<sizeof(sig); i++)
+                    fprintf(stderr, "%02X", sig[i]);
+                fprintf(stderr, "\n");*/
+            }
+
+            //send EOT frame
             frame_buff_cnt=0;
             send_eot(frame_buff, &frame_buff_cnt);
             fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
+            //fprintf(stderr, "Stream has ended. Exiting.\n");
         }
 	}
 
