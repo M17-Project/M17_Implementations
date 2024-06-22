@@ -13,6 +13,18 @@
 
 //#define FN60_DEBUG
 
+//TODO: Load Signature Private and Public Keys from file
+//TODO: More Thorough Testing to make sure everything is good
+//TODO: Round of Cleanup (and test after cleaning up!
+//TODO: OR Frametype Bits depending on encryption type, subtype, and signed sig
+
+//Wishlist: Please Woj, can we use the subtype on AES to signal AES 128, AES 192, or AES 256?
+//          We already to it for Scrambler
+
+//Wishlist: way to fix this warning without changing uECC source code or disabling -Wall -Wextra
+//../../micro-ecc/curve-specific.inc:544:59: warning: unused parameter ‘curve’ [-Wunused-parameter]
+//544 | static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
+
 struct LSF lsf, next_lsf;
 
 uint8_t lich[6];                    //48 bits packed raw, unencoded LICH

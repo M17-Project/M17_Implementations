@@ -10,6 +10,9 @@
 //tinier-aes
 #include "../../tinier-aes/aes.h"
 
+//TODO: Load Signature Private and Public Keys from file
+//TODO: Fix AES Keyfile loading issue (key is loaded offset by one, arg issue?)
+
 //settings
 uint8_t decode_callsigns=0;
 uint8_t show_viterbi_errs=0;
