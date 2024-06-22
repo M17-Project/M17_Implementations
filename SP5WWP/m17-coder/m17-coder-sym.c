@@ -38,7 +38,7 @@ uint8_t sig[64]={0};                //ECDSA signature
 
 int dummy=0;                        //dummy var to make compiler quieter
 
-//encryption
+//AES
 uint8_t encryption=0;
 int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
 uint8_t key[32];
@@ -516,7 +516,7 @@ int main(int argc, char* argv[])
             if(fread(next_data, 16, 1, stdin)<1) finished=1;
         }
 
-        //encrypt
+        //AES
         if(encryption==2)
         {
             memcpy(&(next_lsf.meta), iv, 14);
@@ -525,6 +525,7 @@ int main(int argc, char* argv[])
             aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
         }
 
+        //Scrambler
         else if (encryption == 1)
         {
             scrambler_sequence_generator();
@@ -698,10 +699,10 @@ int main(int argc, char* argv[])
 
 //Signatures and AES
 //encode debug with -- ./m17-coder-sym -D -K sample_aes_key.txt -s 69b07d7afe7f843e56ecbf536a49461dc5901c975d895bf1649cabff8f9b208b > float.sym
-//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d
+//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d -K 1234567890ABCDEF7777777777777777FEDCBA09876543218888888888888888
 //decode debug with -- m17-fme -r -f float.sym -v 1 -k ../m17-decoder/sample_pub_key.txt -J sample_aes_key.txt
 
 //Signatures and 24-bit Scrambler
 //encode debug with -- ./m17-coder-sym -D -k 543210 -s 69b07d7afe7f843e56ecbf536a49461dc5901c975d895bf1649cabff8f9b208b > float.sym
-//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d
+//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d -k 543210
 //decode debug with -- m17-fme -r -f float.sym -v 1 -k ../m17-decoder/sample_pub_key.txt -e 543210

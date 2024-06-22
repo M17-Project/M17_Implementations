@@ -7,6 +7,8 @@
 #include "../../libm17/m17.h"
 //micro-ecc
 #include "../../micro-ecc/uECC.h"
+//tinier-aes
+#include "../../tinier-aes/aes.h"
 
 //settings
 uint8_t decode_callsigns=0;
@@ -42,6 +44,87 @@ uint8_t signed_str=0;               //is the stream signed?
 uint8_t pub_key[64]={0};            //public key
 uint8_t sig[64]={0};                //ECDSA signature
 
+//AES
+uint8_t encryption=0;
+int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
+uint8_t key[32];
+uint8_t iv[16];
+time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
+
+//Scrambler
+uint8_t scr_bytes[16];
+uint8_t scrambler_pn[128];
+uint32_t scrambler_seed=0;
+int8_t scrambler_subtype = -1;
+
+//debug mode
+uint8_t debug_mode=0; //TODO: Remove lines looking at this
+
+//scrambler pn sequence generation
+void scrambler_sequence_generator()
+{
+  int i = 0;
+  uint32_t lfsr, bit;
+  lfsr = scrambler_seed;
+
+  //only set if not initially set (first run), it is possible (and observed) that the scrambler_subtype can 
+  //change on subsequent passes if the current SEED for the LFSR falls below one of these thresholds
+  if (scrambler_subtype == -1)
+  {
+    if      (lfsr > 0 && lfsr <= 0xFF)          scrambler_subtype = 0; // 8-bit key
+    else if (lfsr > 0xFF && lfsr <= 0xFFFF)     scrambler_subtype = 1; //16-bit key
+    else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) scrambler_subtype = 2; //24-bit key
+    else                                        scrambler_subtype = 0; // 8-bit key (default)
+  }
+
+  //TODO: Set Frame Type based on scrambler_subtype value
+  if (debug_mode > 1)
+  {
+    fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_seed, lfsr, scrambler_subtype);
+    fprintf (stderr, "\n pN: ");
+  }
+  
+  //run pN sequence with taps specified
+  for (i = 0; i < 128; i++)
+  {
+    //get feedback bit with specified taps, depending on the scrambler_subtype
+    if (scrambler_subtype == 0)
+      bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
+    else if (scrambler_subtype == 1)
+      bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
+    else if (scrambler_subtype == 2)
+      bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
+    else bit = 0; //should never get here, but just in case
+    
+    bit &= 1; //truncate bit to 1 bit (required since I didn't do it above)
+    lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
+    lfsr &= 0xFFFFFF; //truncate lfsr to 24-bit (really doesn't matter)
+    scrambler_pn[i] = bit;
+
+  }
+
+  //pack bit array into byte array for easy data XOR
+  pack_bit_array_into_byte_array(scrambler_pn, scr_bytes, 16);
+
+  //save scrambler seed for next round
+  scrambler_seed = lfsr;
+
+  //truncate seed so subtype will continue to set properly on subsequent passes
+  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
+  else                        scrambler_seed &= 0xFF;
+
+  if (debug_mode > 1)
+  {
+    //debug packed bytes
+    for (i = 0; i < 16; i++)
+        fprintf (stderr, " %02X", scr_bytes[i]);
+    fprintf (stderr, "\n");
+  }
+  
+}
+
 void usage(void)
 {
     fprintf(stderr, "Usage:\n");
@@ -51,6 +134,8 @@ void usage(void)
     fprintf(stderr, "-l - Display LSF CRC checks,\n");
     fprintf(stderr, "-d - Set syncword detection threshold (decimal value),\n");
     fprintf(stderr, "-s - Public key for ECDSA signature, 64 bytes (-s [hex_string|key_file]),\n");
+    fprintf(stderr, "-K - AES encryption key (-K [hex_string|text_file]),\n");
+    fprintf(stderr, "-k - Scrambler encryption seed value (-k [hex_string]),\n");
     fprintf(stderr, "-h - help / print usage\n");
 }
 
@@ -161,6 +246,120 @@ int main(int argc, char* argv[])
 
                 i++;
             }
+            
+            //Woj: There is a bug in loading keys this way, I think
+            // it is to do with how scannign args is different here than in the encoder?
+            //when loading by file, the key is shifted by one char
+            //when loading the hex value, though, it works fine.
+            if(argv[i][1]=='K') //-K - AES Encryption
+            {
+                if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
+                {
+                    char fname[128]={'\0'}; //output file
+                    if(strlen(&argv[i+1][0])>0)
+                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
+                    else
+                    {
+                        fprintf(stderr, "Invalid filename. Exiting...\n");
+                        return -1;
+                    }
+
+                    FILE* fp;
+                    char source_str[64];
+
+                    fp = fopen(fname, "r");
+                    if(!fp)
+                    {
+                        fprintf(stderr, "Failed to load file %s.\n", fname);
+                        return -1;
+                    }
+
+                    //size check
+                    size_t len = fread(source_str, 1, 64, fp); //TODO: check length
+                    fclose(fp);
+
+                    if(len==256/4)
+                        fprintf(stderr, "AES256");
+                    else if(len==192/4)
+                        fprintf(stderr, "AES192");
+                    else if(len==128/4)
+                        fprintf(stderr, "AES128");
+                    else
+                    {
+                        fprintf(stderr, "Invalid key length.\n");
+                        return -1;
+                    }
+
+                    parse_raw_key_string(key, source_str);
+
+                    fprintf(stderr, " key:");
+                    for(uint8_t i=0; i<len/2; i++)
+                    {
+                        if(i==16)
+                            fprintf(stderr, "\n           ");
+                        fprintf(stderr, " %02X", key[i]);
+                    }
+                    fprintf(stderr, "\n");
+                }
+                else
+                {
+                    //size check
+                    size_t len = strlen(argv[i+1]);
+
+                    if(len==256/4)
+                        fprintf(stderr, "AES256");
+                    else if(len==192/4)
+                        fprintf(stderr, "AES192");
+                    else if(len==128/4)
+                        fprintf(stderr, "AES128");
+                    else
+                    {
+                        fprintf(stderr, "Invalid key length.\n");
+                        return -1;
+                    }
+
+                    parse_raw_key_string(key, argv[i+1]);
+
+                    fprintf(stderr, " key:");
+                    for(uint8_t i=0; i<len/2; i++)
+                    {
+                        if(i==16)
+                            fprintf(stderr, "\n           ");
+                        fprintf(stderr, " %02X", key[i]);
+                    }
+                    fprintf(stderr, "\n");
+                }
+
+                encryption=2; //AES key was passed
+            }
+            if(argv[i][1]=='k') //-k - Scrambler Encryption
+            {
+                //length check
+                uint8_t length=strlen(argv[i+1]);
+                if(length==0 || length>24/4) //24-bit is the largest seed value
+                {
+                    fprintf(stderr, "Invalid key length.\n");
+                    return -1;
+                }
+
+                parse_raw_key_string(key, argv[i+1]);
+                scrambler_seed = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
+
+                if(length<=2)
+                {
+                    scrambler_seed = scrambler_seed >> 16;
+                    fprintf(stderr, "Scrambler key: 0x%02X (8-bit)\n", scrambler_seed);
+                }
+                else if(length<=4)
+                {
+                    scrambler_seed = scrambler_seed >> 8;
+                    fprintf(stderr, "Scrambler key: 0x%04X (16-bit)\n", scrambler_seed);
+                }
+                else
+                    fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_seed);
+
+                encryption=1; //Scrambler key was passed
+            }
 
             if(!strcmp(argv[i], "-l"))
             {
@@ -250,6 +449,42 @@ int main(int argc, char* argv[])
                     uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
                     signed_str=(type>>11)&1;
 
+                    ///if the stream is signed (process before decryption)
+                    if(signed_str && fn<0x7FFC)
+                    {
+                        if(fn==0)
+                            memset(digest, 0, sizeof(digest));
+
+                        for(uint8_t i=0; i<sizeof(digest); i++)
+                            digest[i]^=frame_data[3+i];
+                        uint8_t tmp=digest[0];
+                        for(uint8_t i=0; i<sizeof(digest)-1; i++)
+                            digest[i]=digest[i+1];
+                        digest[sizeof(digest)-1]=tmp;
+                    }
+
+                    //NOTE: Don't attempt decryption when a signed stream is >= 0x7FFC
+                    //The Signature is not encrypted
+                    
+                    //AES
+                    if (encryption == 2 && fn<0x7FFC)
+                    {
+                        memcpy(iv, lsf+14, 14);
+                        iv[14] = frame_data[1] & 0x7F;
+                        iv[15] = frame_data[2] & 0xFF;
+                        aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, aes_type);
+                    }
+
+                    //Scrambler
+                    if (encryption == 1 && fn<0x7FFC)
+                    {
+                        scrambler_sequence_generator();
+                        for(uint8_t i=0; i<16; i++)
+                        {
+                            frame_data[i+3] ^= scr_bytes[i];
+                        }
+                    }
+
                     //dump data - first byte is empty
                     printf("FN: %04X PLD: ", fn);
                     for(uint8_t i=3; i<19; i++)
@@ -263,20 +498,6 @@ int main(int argc, char* argv[])
 
                     //send codec2 stream to stdout
                     //fwrite(&frame_data[3], 16, 1, stdout);
-
-                    //if the stream is signed
-                    if(signed_str && fn<0x7FFC)
-                    {
-                        if(fn==0)
-                            memset(digest, 0, sizeof(digest));
-
-                        for(uint8_t i=0; i<sizeof(digest); i++)
-                            digest[i]^=frame_data[3+i];
-                        uint8_t tmp=digest[0];
-                        for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                            digest[i]=digest[i+1];
-                        digest[sizeof(digest)-1]=tmp;
-                    }
 
                     //extract LICH
                     for(uint16_t i=0; i<96; i++)
