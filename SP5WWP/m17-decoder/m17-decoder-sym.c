@@ -267,6 +267,9 @@ int main(int argc, char* argv[])
                     //if the stream is signed
                     if(signed_str && fn<0x7FFC)
                     {
+                        if(fn==0)
+                            memset(digest, 0, sizeof(digest));
+
                         for(uint8_t i=0; i<sizeof(digest); i++)
                             digest[i]^=frame_data[3+i];
                         uint8_t tmp=digest[0];
