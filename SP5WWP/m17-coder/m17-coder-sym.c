@@ -711,7 +711,7 @@ int main(int argc, char* argv[])
 
 //Signatures and AES
 //encode debug with -- ./m17-coder-sym -D -K sample_aes_key.txt -s 69b07d7afe7f843e56ecbf536a49461dc5901c975d895bf1649cabff8f9b208b > float.sym
-//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d -K 1234567890ABCDEF7777777777777777FEDCBA09876543218888888888888888
+//decode debug with -- cat ../m17-coder/float.sym | ./m17-decoder-sym -s c6c03dd11276aa917e7d83ae16d7f4fbf06f31be5869f9ae8004c329947dc4eeef0d9363653c8edf93e50912c6c515b40e0a8cbeea5e984dbc78e1993c8fbd5d -K sample_aes_key.txt
 //decode debug with -- m17-fme -r -f float.sym -v 1 -k ../m17-decoder/sample_pub_key.txt -J sample_aes_key.txt
 
 //Signatures and 24-bit Scrambler
