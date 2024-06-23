@@ -692,7 +692,7 @@ int main(int argc, char* argv[])
             //send EOT frame
             frame_buff_cnt=0;
             send_eot(frame_buff, &frame_buff_cnt);
-            fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             //fprintf(stderr, "Stream has ended. Exiting.\n");
         }
 	}
