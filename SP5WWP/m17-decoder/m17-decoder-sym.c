@@ -48,7 +48,12 @@ uint8_t sig[64]={0};                //ECDSA signature
 
 //AES
 uint8_t encryption=0;
-int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
+typedef enum
+{
+    AES128=1,
+    AES192,
+    AES256
+} aes_t;
 uint8_t key[32];
 uint8_t iv[16];
 time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
@@ -296,10 +301,7 @@ int main(int argc, char* argv[])
             {
                 if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
                 {
-                    char fname[128]={'\0'}; //output file
-                    if(strlen(&argv[i+1][0])>0)
-                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
-                    else
+                    if(strlen(argv[i+1])<3)
                     {
                         fprintf(stderr, "Invalid filename. Exiting...\n");
                         return -1;
@@ -308,10 +310,10 @@ int main(int argc, char* argv[])
                     FILE* fp;
                     char source_str[64];
 
-                    fp = fopen(fname, "r");
+                    fp = fopen(argv[i+1], "r");
                     if(!fp)
                     {
-                        fprintf(stderr, "Failed to load file %s.\n", fname);
+                        fprintf(stderr, "Failed to load file %s.\n", argv[i+1]);
                         return -1;
                     }
 
@@ -341,6 +343,8 @@ int main(int argc, char* argv[])
                         fprintf(stderr, " %02X", key[i]);
                     }
                     fprintf(stderr, "\n");
+
+                    i++;
                 }
                 else
                 {
@@ -509,16 +513,16 @@ int main(int argc, char* argv[])
                     //The Signature is not encrypted
                     
                     //AES
-                    if (encryption == 2 && fn<0x7FFC)
+                    if(encryption == 2 && fn<0x7FFC)
                     {
                         memcpy(iv, lsf+14, 14);
                         iv[14] = frame_data[1] & 0x7F;
                         iv[15] = frame_data[2] & 0xFF;
-                        aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, aes_type);
+                        aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
                     }
 
                     //Scrambler
-                    if (encryption == 1 && fn<0x7FFC)
+                    if(encryption == 1 && fn<0x7FFC)
                     {
                         if ((fn % 0x8000)!=expected_next_fn) //frame skip, etc
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);

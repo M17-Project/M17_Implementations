@@ -15,7 +15,7 @@
 
 //TODO: Load Signature Private and Public Keys from file
 //TODO: More Thorough Testing to make sure everything is good
-//TODO: Round of Cleanup (and test after cleaning up!
+//TODO: Round of Cleanup (and test after cleaning up!)
 //TODO: OR Frametype Bits depending on encryption type, subtype, and signed sig
 
 //Wishlist: Please Woj, can we use the subtype on AES to signal AES 128, AES 192, or AES 256?
@@ -52,7 +52,12 @@ int dummy=0;                        //dummy var to make compiler quieter
 
 //AES
 uint8_t encryption=0;
-int aes_type = 1; //1=AES128, 2=AES192, 3=AES256
+typedef enum
+{
+    AES128=1,
+    AES192,
+    AES256
+} aes_t;
 uint8_t key[32];
 uint8_t iv[16];
 time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
@@ -63,7 +68,7 @@ uint8_t scrambler_pn[128];
 uint32_t scrambler_seed=0;
 int8_t scrambler_subtype = -1;
 
-//debug mode (preset lsf, type, zero payload for enc testing, etc)
+//debug mode (preset lsf, type, fixed dummy payload for enc testing, etc)
 uint8_t debug_mode=0;
 
 //scrambler pn sequence generation
@@ -75,7 +80,7 @@ void scrambler_sequence_generator()
 
   //only set if not initially set (first run), it is possible (and observed) that the scrambler_subtype can 
   //change on subsequent passes if the current SEED for the LFSR falls below one of these thresholds
-  if (scrambler_subtype == -1)
+  if(scrambler_subtype == -1)
   {
     if      (lfsr > 0 && lfsr <= 0xFF)          scrambler_subtype = 0; // 8-bit key
     else if (lfsr > 0xFF && lfsr <= 0xFFFF)     scrambler_subtype = 1; //16-bit key
@@ -84,21 +89,21 @@ void scrambler_sequence_generator()
   }
 
   //TODO: Set Frame Type based on scrambler_subtype value
-  if (debug_mode > 1)
+  if(debug_mode>1)
   {
     fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_seed, lfsr, scrambler_subtype);
     fprintf (stderr, "\n pN: ");
   }
   
   //run pN sequence with taps specified
-  for (i = 0; i < 128; i++)
+  for(i=0; i<128; i++)
   {
     //get feedback bit with specified taps, depending on the scrambler_subtype
-    if (scrambler_subtype == 0)
+    if(scrambler_subtype == 0)
       bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
-    else if (scrambler_subtype == 1)
+    else if(scrambler_subtype == 1)
       bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
-    else if (scrambler_subtype == 2)
+    else if(scrambler_subtype == 2)
       bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
     else bit = 0; //should never get here, but just in case
     
@@ -116,15 +121,15 @@ void scrambler_sequence_generator()
   scrambler_seed = lfsr;
 
   //truncate seed so subtype will continue to set properly on subsequent passes
-  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
-  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
-  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
-  else                        scrambler_seed &= 0xFF;
+  if(scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  if(scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  if(scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
+  else                       scrambler_seed &= 0xFF;
 
-  if (debug_mode > 1)
+  if(debug_mode>1)
   {
     //debug packed bytes
-    for (i = 0; i < 16; i++)
+    for(i = 0; i < 16; i++)
         fprintf (stderr, " %02X", scr_bytes[i]);
     fprintf (stderr, "\n");
   }
@@ -369,12 +374,12 @@ int main(int argc, char* argv[])
 	send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
-    if (debug_mode == 1)
+    if(debug_mode == 1)
     {
-        //broadcast
+        //destination set to "ALL"
         memset(lsf.dst, 0xFF, 6*sizeof(uint8_t));
 
-        //N0CALL
+        //source set to "N0CALL"
         lsf.src[0] = 0x00;
         lsf.src[1] = 0x00;
         lsf.src[2] = 0x4B;
@@ -382,12 +387,12 @@ int main(int argc, char* argv[])
         lsf.src[4] = 0xD1;
         lsf.src[5] = 0x06;
 
-        if (encryption == 2) //AES ENC, 3200 voice
+        if(encryption == 2) //AES ENC, 3200 voice
         {
             lsf.type[0] = 0x03;
             lsf.type[1] = 0x95;
         }
-        else if (encryption == 1) //Scrambler ENC, 3200 Voice
+        else if(encryption == 1) //Scrambler ENC, 3200 Voice
         {
             lsf.type[0] = 0x03;
             lsf.type[1] = 0xCD;
@@ -414,7 +419,7 @@ int main(int argc, char* argv[])
         finished = 0;
 
         //debug sig with random payloads (don't play the audio)
-        for (uint8_t i = 0; i < 16; i++)
+        for(uint8_t i = 0; i < 16; i++)
             data[i] = 0x69; //rand() & 0xFF;
     }
     else
@@ -473,12 +478,12 @@ int main(int argc, char* argv[])
             got_lsf=1;
         }
 
-        if (debug_mode == 1)
+        if(debug_mode==1)
         {
-            //broadcast
+            //destination set to "ALL"
             memset(next_lsf.dst, 0xFF, 6*sizeof(uint8_t));
 
-            //N0CALL
+            //source  set to "N0CALL"
             next_lsf.src[0] = 0x00;
             next_lsf.src[1] = 0x00;
             next_lsf.src[2] = 0x4B;
@@ -486,12 +491,12 @@ int main(int argc, char* argv[])
             next_lsf.src[4] = 0xD1;
             next_lsf.src[5] = 0x06;
 
-            if (encryption == 2) //AES ENC, 3200 voice
+            if(encryption==2) //AES ENC, 3200 voice
             {
                 next_lsf.type[0] = 0x03;
                 next_lsf.type[1] = 0x95;
             }
-            else if (encryption == 1) //Scrambler ENC, 3200 Voice
+            else if(encryption==1) //Scrambler ENC, 3200 Voice
             {
                 next_lsf.type[0] = 0x03;
                 next_lsf.type[1] = 0xCD;
@@ -510,11 +515,11 @@ int main(int argc, char* argv[])
 
             memset(next_data, 0, sizeof(next_data));
             memcpy(data, next_data, sizeof(data));
-            if (fn == 60)
+            if(fn == 60)
                 finished = 1;
 
             //debug sig with random payloads (don't play the audio)
-            for (uint8_t i = 0; i < 16; i++)
+            for(uint8_t i = 0; i < 16; i++)
                 data[i] = 0x69; //rand() & 0xFF;
                 
         }
@@ -534,11 +539,11 @@ int main(int argc, char* argv[])
             memcpy(&(next_lsf.meta), iv, 14);
             iv[14] = (fn >> 8) & 0x7F;
             iv[15] = (fn >> 0) & 0xFF;
-            aes_ctr_bytewise_payload_crypt(iv, key, data, aes_type);
+            aes_ctr_bytewise_payload_crypt(iv, key, data, AES128); //hardcoded for now
         }
 
         //Scrambler
-        else if (encryption == 1)
+        else if(encryption == 1)
         {
             scrambler_sequence_generator();
             for(uint8_t i=0; i<16; i++)
@@ -670,12 +675,12 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "%02X", sig[i]);
                 fprintf(stderr, "\n");*/
 
-                if (debug_mode == 1)
+                if(debug_mode == 1)
                 {
                 fprintf(stderr, "Signature: ");
                 for(uint8_t i=0; i<sizeof(sig); i++)
                 {
-                    if (i == 16 || i == 32 || i == 48)
+                    if(i == 16 || i == 32 || i == 48)
                         fprintf(stderr, "\n           ");
                     fprintf(stderr, "%02X", sig[i]);
                 }
