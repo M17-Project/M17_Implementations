@@ -11,7 +11,6 @@
 #include "../../tinier-aes/aes.h"
 
 //TODO: Load Signature Private and Public Keys from file
-//TODO: Fix AES Keyfile loading issue (key is loaded offset by one, arg issue?)
 
 //settings
 uint8_t decode_callsigns=0;
@@ -57,11 +56,50 @@ time_t epoch = 1577836800L; //Jan 1, 2020, 00:00:00 UTC
 //Scrambler
 uint8_t scr_bytes[16];
 uint8_t scrambler_pn[128];
+uint32_t scrambler_key=0; //keep set to initial value for seed calculation function
 uint32_t scrambler_seed=0;
 int8_t scrambler_subtype = -1;
 
 //debug mode
 uint8_t debug_mode=0; //TODO: Remove lines looking at this
+
+//this is generating a correct seed value based on the fn value,
+//ideally, we would only want to run this under poor signal, frame skips, etc 
+//Note: Running this every frame will lag if high fn values (observed with test file)
+uint32_t scrambler_seed_calculation(int8_t subtype, uint32_t key, int fn)
+{
+  int i;
+  uint32_t lfsr, bit;
+
+  lfsr = key; bit = 0;
+  for (i = 0; i < 128*fn; i++)
+  {
+    //get feedback bit with specified taps, depending on the subtype
+    if (subtype == 0)
+      bit = (lfsr >> 7) ^ (lfsr >> 5) ^ (lfsr >> 4) ^ (lfsr >> 3);
+    else if (subtype == 1)
+      bit = (lfsr >> 15) ^ (lfsr >> 14) ^ (lfsr >> 12) ^ (lfsr >> 3);
+    else if (subtype == 2)
+      bit = (lfsr >> 23) ^ (lfsr >> 22) ^ (lfsr >> 21) ^ (lfsr >> 16);
+    else bit = 0; //should never get here, but just in case
+    
+    bit &= 1; //truncate bit to 1 bit
+    lfsr = (lfsr << 1) | bit; //shift LFSR left once and OR bit onto LFSR's LSB
+    lfsr &= 0xFFFFFF; //truncate lfsr to 24-bit
+
+  }
+
+  //truncate seed so subtype will continue to set properly on subsequent passes
+  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
+  else                        scrambler_seed &= 0xFF;
+
+  //debug
+  //fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d; FN: %05d; ", key, lfsr, subtype, fn);
+
+  return lfsr;
+}
 
 //scrambler pn sequence generation
 void scrambler_sequence_generator()
@@ -346,22 +384,23 @@ int main(int argc, char* argv[])
                 }
 
                 parse_raw_key_string(key, argv[i+1]);
-                scrambler_seed = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
+                scrambler_key = (key[0] << 16) | (key[1] << 8) | (key[2] << 0);
 
                 if(length<=2)
                 {
-                    scrambler_seed = scrambler_seed >> 16;
-                    fprintf(stderr, "Scrambler key: 0x%02X (8-bit)\n", scrambler_seed);
+                    scrambler_key = scrambler_key >> 16;
+                    fprintf(stderr, "Scrambler key: 0x%02X (8-bit)\n", scrambler_key);
                 }
                 else if(length<=4)
                 {
-                    scrambler_seed = scrambler_seed >> 8;
-                    fprintf(stderr, "Scrambler key: 0x%04X (16-bit)\n", scrambler_seed);
+                    scrambler_key = scrambler_key >> 8;
+                    fprintf(stderr, "Scrambler key: 0x%04X (16-bit)\n", scrambler_key);
                 }
                 else
-                    fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_seed);
+                    fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_key);
 
                 encryption=1; //Scrambler key was passed
+                scrambler_seed = scrambler_key; //set initial seed value to key value
             }
 
             if(!strcmp(argv[i], "-l"))
@@ -481,6 +520,8 @@ int main(int argc, char* argv[])
                     //Scrambler
                     if (encryption == 1 && fn<0x7FFC)
                     {
+                        if ((fn % 0x8000)!=expected_next_fn) //frame skip, etc
+                            scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);
                         scrambler_sequence_generator();
                         for(uint8_t i=0; i<16; i++)
                         {
