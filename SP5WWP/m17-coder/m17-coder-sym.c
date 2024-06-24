@@ -13,13 +13,9 @@
 
 //#define FN60_DEBUG
 
-//TODO: Load Signature Private and Public Keys from file
 //TODO: More Thorough Testing to make sure everything is good
 //TODO: Round of Cleanup (and test after cleaning up!)
 //TODO: OR Frametype Bits depending on encryption type, subtype, and signed sig
-
-//Wishlist: Please Woj, can we use the subtype on AES to signal AES 128, AES 192, or AES 256?
-//          We already to it for Scrambler
 
 //Wishlist: way to fix this warning without changing uECC source code or disabling -Wall -Wextra
 //../../micro-ecc/curve-specific.inc:544:59: warning: unused parameter ‘curve’ [-Wunused-parameter]
@@ -401,7 +397,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    if(encryption==2)
+    if(encryption==ENCR_AES)
     {
         for(uint8_t i=0; i<4; i++)
             iv[i] = ((uint32_t)(time(NULL)&0xFFFFFFFF)-(uint32_t)epoch) >> (24-(i*8));
@@ -416,7 +412,7 @@ int main(int argc, char* argv[])
 	send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
-    if(debug_mode == 1)
+    if(debug_mode==1)
     {
         //destination set to "ALL"
         memset(lsf.dst, 0xFF, 6*sizeof(uint8_t));
@@ -429,12 +425,12 @@ int main(int argc, char* argv[])
         lsf.src[4] = 0xD1;
         lsf.src[5] = 0x06;
 
-        if(encryption == 2) //AES ENC, 3200 voice
+        if(encryption==ENCR_AES) //AES ENC, 3200 voice
         {
             lsf.type[0] = 0x03;
             lsf.type[1] = 0x95;
         }
-        else if(encryption == 1) //Scrambler ENC, 3200 Voice
+        else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
         {
             lsf.type[0] = 0x03;
             lsf.type[1] = 0xCD;
@@ -466,6 +462,7 @@ int main(int argc, char* argv[])
     }
     else
     {
+        //TODO: pass some of these through arguments?
         //read data
         dummy=fread(&(lsf.dst), 6, 1, stdin);
         dummy=fread(&(lsf.src), 6, 1, stdin);
@@ -475,7 +472,7 @@ int main(int argc, char* argv[])
     }
 
     //AES encryption enabled - use 112 bits of IV
-    if(encryption==2)
+    if(encryption==ENCR_AES)
     {
         memcpy(&(lsf.meta), iv, 14);
         iv[14] = (fn >> 8) & 0x7F;
@@ -533,12 +530,12 @@ int main(int argc, char* argv[])
             next_lsf.src[4] = 0xD1;
             next_lsf.src[5] = 0x06;
 
-            if(encryption==2) //AES ENC, 3200 voice
+            if(encryption==ENCR_AES) //AES ENC, 3200 voice
             {
                 next_lsf.type[0] = 0x03;
                 next_lsf.type[1] = 0x95;
             }
-            else if(encryption==1) //Scrambler ENC, 3200 Voice
+            else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
             {
                 next_lsf.type[0] = 0x03;
                 next_lsf.type[1] = 0xCD;
@@ -576,7 +573,7 @@ int main(int argc, char* argv[])
         }
 
         //AES
-        if(encryption==2)
+        if(encryption==ENCR_AES)
         {
             memcpy(&(next_lsf.meta), iv, 14);
             iv[14] = (fn >> 8) & 0x7F;
@@ -585,7 +582,7 @@ int main(int argc, char* argv[])
         }
 
         //Scrambler
-        else if(encryption == 1)
+        else if(encryption==ENCR_SCRAM)
         {
             scrambler_sequence_generator();
             for(uint8_t i=0; i<16; i++)
