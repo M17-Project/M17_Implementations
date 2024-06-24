@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 //libm17
 #include "../../libm17/m17.h"
@@ -46,11 +47,20 @@ uint8_t signed_str=0;               //is the stream signed?
 uint8_t pub_key[64]={0};            //public key
 uint8_t sig[64]={0};                //ECDSA signature
 
-//AES
-uint8_t encryption=0;
+//encryption
 typedef enum
 {
-    AES128=1,
+    ENCR_NONE,
+    ENCR_SCRAM,
+    ENCR_AES,
+    ENCR_RES //reserved
+} encr_t;
+encr_t encryption=ENCR_NONE;
+
+//AES
+typedef enum
+{
+    AES128,
     AES192,
     AES256
 } aes_t;
@@ -124,10 +134,10 @@ void scrambler_sequence_generator()
   }
 
   //TODO: Set Frame Type based on scrambler_subtype value
-  if (debug_mode > 1)
+  if (debug_mode>1)
   {
-    fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_seed, lfsr, scrambler_subtype);
-    fprintf (stderr, "\n pN: ");
+    fprintf(stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d;", scrambler_seed, lfsr, scrambler_subtype);
+    fprintf(stderr, "\n pN: ");
   }
   
   //run pN sequence with taps specified
@@ -280,23 +290,52 @@ int main(int argc, char* argv[])
 
             if(!strcmp(argv[i], "-s"))
             {
-                uint16_t len=strlen(argv[i+1]);
-
-                if(len!=64*2) //for secp256r1
+                if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
                 {
-                    fprintf(stderr, "Invalid private key length. Exiting...\n");
-                    return -1;
-                }
+                    if(strlen(argv[i+1])<3)
+                    {
+                        fprintf(stderr, "Invalid filename. Exiting...\n");
+                        return -1;
+                    }
 
-                parse_raw_key_string(pub_key, argv[i+1]);
+                    FILE* fp;
+                    char source_str[64*2];
+
+                    fp = fopen(argv[i+1], "r");
+                    if(!fp)
+                    {
+                        fprintf(stderr, "Failed to load file %s.\n", argv[i+1]);
+                        return -1;
+                    }
+
+                    //size check
+                    size_t len = fread(source_str, 1, 64*2, fp);
+                    fclose(fp);
+
+                    if(len!=64*2) //for secp256r1
+                    {
+                        fprintf(stderr, "Invalid public key length. Exiting...\n");
+                        return -1;
+                    }
+
+                    parse_raw_key_string(pub_key, source_str);
+                }
+                else
+                {
+                    uint16_t len=strlen(argv[i+1]);
+
+                    if(len!=64*2) //for secp256r1
+                    {
+                        fprintf(stderr, "Invalid public key length. Exiting...\n");
+                        return -1;
+                    }
+
+                    parse_raw_key_string(pub_key, argv[i+1]);
+                }
 
                 i++;
             }
             
-            //Woj: There is a bug in loading keys this way, I think
-            // it is to do with how scannign args is different here than in the encoder?
-            //when loading by file, the key is shifted by one char
-            //when loading the hex value, though, it works fine.
             if(argv[i][1]=='K') //-K - AES Encryption
             {
                 if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
@@ -318,7 +357,7 @@ int main(int argc, char* argv[])
                     }
 
                     //size check
-                    size_t len = fread(source_str, 1, 64, fp); //TODO: check length
+                    size_t len = fread(source_str, 1, 64, fp);
                     fclose(fp);
 
                     if(len==256/4)
@@ -343,8 +382,6 @@ int main(int argc, char* argv[])
                         fprintf(stderr, " %02X", key[i]);
                     }
                     fprintf(stderr, "\n");
-
-                    i++;
                 }
                 else
                 {
@@ -375,7 +412,8 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "\n");
                 }
 
-                encryption=2; //AES key was passed
+                encryption=ENCR_AES; //AES key was passed
+                i++;
             }
             if(argv[i][1]=='k') //-k - Scrambler Encryption
             {
@@ -403,7 +441,7 @@ int main(int argc, char* argv[])
                 else
                     fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_key);
 
-                encryption=1; //Scrambler key was passed
+                encryption=ENCR_SCRAM; //Scrambler key was passed
                 scrambler_seed = scrambler_key; //set initial seed value to key value
             }
 
@@ -513,7 +551,7 @@ int main(int argc, char* argv[])
                     //The Signature is not encrypted
                     
                     //AES
-                    if(encryption == 2 && fn<0x7FFC)
+                    if(encryption==ENCR_AES && fn<0x7FFC)
                     {
                         memcpy(iv, lsf+14, 14);
                         iv[14] = frame_data[1] & 0x7F;
@@ -522,7 +560,7 @@ int main(int argc, char* argv[])
                     }
 
                     //Scrambler
-                    if(encryption == 1 && fn<0x7FFC)
+                    if(encryption==ENCR_SCRAM && fn<0x7FFC)
                     {
                         if ((fn % 0x8000)!=expected_next_fn) //frame skip, etc
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);

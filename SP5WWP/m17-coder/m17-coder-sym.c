@@ -50,11 +50,20 @@ uint8_t sig[64]={0};                //ECDSA signature
 
 int dummy=0;                        //dummy var to make compiler quieter
 
-//AES
-uint8_t encryption=0;
+//encryption
 typedef enum
 {
-    AES128=1,
+    ENCR_NONE,
+    ENCR_SCRAM,
+    ENCR_AES,
+    ENCR_RES //reserved
+} encr_t;
+encr_t encryption=ENCR_NONE;
+
+//AES
+typedef enum
+{
+    AES128,
     AES192,
     AES256
 } aes_t;
@@ -218,15 +227,49 @@ int main(int argc, char* argv[])
             {
                 if(argv[i][1]=='s') //-s - private key for digital signature
                 {
-                    uint16_t len=strlen(argv[i+1]);
-
-                    if(len!=32*2) //for secp256r1
+                    if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
                     {
-                        fprintf(stderr, "Invalid private key length. Exiting...\n");
-                        return -1;
+                        if(strlen(argv[i+1])<3)
+                        {
+                            fprintf(stderr, "Invalid filename. Exiting...\n");
+                            return -1;
+                        }
+
+                        FILE* fp;
+                        char source_str[32*2];
+
+                        fp = fopen(argv[i+1], "r");
+                        if(!fp)
+                        {
+                            fprintf(stderr, "Failed to load file %s.\n", argv[i+1]);
+                            return -1;
+                        }
+
+                        //size check
+                        size_t len = fread(source_str, 1, 32*2, fp);
+                        fclose(fp);
+
+                        if(len!=32*2) //for secp256r1
+                        {
+                            fprintf(stderr, "Invalid public key length. Exiting...\n");
+                            return -1;
+                        }
+
+                        parse_raw_key_string(priv_key, source_str);
+                    }
+                    else
+                    {
+                        uint16_t len=strlen(argv[i+1]);
+
+                        if(len!=32*2) //for secp256r1
+                        {
+                            fprintf(stderr, "Invalid private key length. Exiting...\n");
+                            return -1;
+                        }
+
+                        parse_raw_key_string(priv_key, argv[i+1]);
                     }
 
-                    parse_raw_key_string(priv_key, argv[i+1]);
                     priv_key_loaded=1; //mainly for debug mode
                     i++;
                 }
@@ -234,10 +277,7 @@ int main(int argc, char* argv[])
                 {
                     if(strstr(argv[i+1], ".")) //if the next arg contains a dot - read key from a text file
                     {
-                        char fname[128]={'\0'}; //output file
-                        if(strlen(&argv[i+1][0])>0)
-                            memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
-                        else
+                        if(strlen(argv[i+1])<3)
                         {
                             fprintf(stderr, "Invalid filename. Exiting...\n");
                             return -1;
@@ -246,15 +286,15 @@ int main(int argc, char* argv[])
                         FILE* fp;
                         char source_str[64];
 
-                        fp = fopen(fname, "r");
+                        fp = fopen(argv[i+1], "r");
                         if(!fp)
                         {
-                            fprintf(stderr, "Failed to load file %s.\n", fname);
+                            fprintf(stderr, "Failed to load file %s.\n", argv[i+1]);
                             return -1;
                         }
 
                         //size check
-                        size_t len = fread(source_str, 1, 64, fp); //TODO: check length
+                        size_t len = fread(source_str, 1, 64, fp);
                         fclose(fp);
 
                         if(len==256/4)
@@ -309,7 +349,8 @@ int main(int argc, char* argv[])
                         fprintf(stderr, "\n");
                     }
 
-                    encryption=2; //AES key was passed
+                    encryption=ENCR_AES; //AES key was passed
+                    i++;
                 }
                 else if(argv[i][1]=='k') //-k - Scrambler Encryption
                 {
@@ -337,7 +378,8 @@ int main(int argc, char* argv[])
                     else
                         fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_seed);
 
-                    encryption=1; //Scrambler key was passed
+                    encryption=ENCR_SCRAM; //Scrambler key was passed
+                    i++;
                 }
                 else if(argv[i][1]=='D') //-D - Debug Mode
                 {
