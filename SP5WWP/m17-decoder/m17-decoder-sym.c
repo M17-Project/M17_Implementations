@@ -659,7 +659,17 @@ int main(int argc, char* argv[])
                                 printf("24-bit, ");
                         }
                         else if(((type>>3)&3)==2)
-                            printf("AES, ");
+                        {
+                            printf("AES");
+                            if(((type>>5)&3)==0)
+                                printf("128");
+                            else if(((type>>5)&3)==1)
+                                printf("192");
+                            else if(((type>>5)&3)==2)
+                                printf("256");
+
+                            printf(", ");
+                        }
                         else
                             printf("UNK, ");
                         printf("CAN: %d", (type>>7)&0xF);
@@ -801,7 +811,7 @@ int main(int argc, char* argv[])
                             printf("128");
                         else if(((type>>5)&3)==1)
                             printf("192");
-                        else if(((type>>5)&3)==1)
+                        else if(((type>>5)&3)==2)
                             printf("256");
 
                         printf(", ");
