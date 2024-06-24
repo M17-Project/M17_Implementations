@@ -596,7 +596,7 @@ int main(int argc, char* argv[])
                     lich_cnt=lich_b[5]>>5;
 
                     //If we're at the start of a superframe, or we missed a frame, reset the LICH state
-                    if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn))
+                    if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn && fn<0x7FFC))
                         lich_chunks_rcvd=0;
 
                     lich_chunks_rcvd|=(1<<lich_cnt);

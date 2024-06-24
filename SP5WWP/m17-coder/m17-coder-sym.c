@@ -659,6 +659,7 @@ int main(int argc, char* argv[])
             randomize_bits(rf_bits);
             send_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+            lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
 
             //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
             if(signed_str)
