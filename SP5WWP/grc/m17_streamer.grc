@@ -45,6 +45,30 @@ blocks:
     coordinate: [184, 4.0]
     rotation: 0
     state: true
+- name: encr
+  id: variable
+  parameters:
+    comment: ''
+    value: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [328, 4.0]
+    rotation: 0
+    state: true
+- name: encr_sub
+  id: variable
+  parameters:
+    comment: ''
+    value: '2'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [400, 4.0]
+    rotation: 0
+    state: true
 - name: sign
   id: variable
   parameters:
@@ -188,7 +212,7 @@ blocks:
     repeat: 'True'
     tags: '[]'
     type: byte
-    vector: ((sign<<3)|(can>>1), ((can&1)<<7)|0x05)
+    vector: ((sign<<3)|(can>>1), ((can&1)<<7)|(encr_sub<<5)|(encr<<3)|(2<<1)|(1<<0))
     vlen: '1'
   states:
     bus_sink: false
