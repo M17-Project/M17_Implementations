@@ -126,10 +126,9 @@ void scrambler_sequence_generator()
   scrambler_seed = lfsr;
 
   //truncate seed so subtype will continue to set properly on subsequent passes
-  if(scrambler_subtype == 0) scrambler_seed &= 0xFF;
-  if(scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
-  if(scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
-  else                       scrambler_seed &= 0xFF;
+  if(scrambler_subtype == 0)      scrambler_seed &= 0xFF;
+  else if(scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  else if(scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
 
   if(debug_mode>1)
   {
@@ -432,8 +431,15 @@ int main(int argc, char* argv[])
         }
         else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
         {
-            lsf.type[0] = 0x03;
-            lsf.type[1] = 0xCD;
+            lsf.type[0] = 0x00;
+            lsf.type[1] = 0x00;
+            if (scrambler_subtype==0)
+                lsf.type[1] = 0x0D;
+            else if (scrambler_subtype==1)
+                lsf.type[1] = 0x2D;
+            else if (scrambler_subtype==2)
+                lsf.type[1] = 0x4D;
+
         }
         else //no enc or subtype field, normal 3200 voice
         {
@@ -537,8 +543,14 @@ int main(int argc, char* argv[])
             }
             else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
             {
-                next_lsf.type[0] = 0x03;
-                next_lsf.type[1] = 0xCD;
+                next_lsf.type[0] = 0x00;
+                next_lsf.type[1] = 0x00;
+                if (scrambler_subtype==0)
+                    next_lsf.type[1] = 0x0D;
+                else if (scrambler_subtype==1)
+                    next_lsf.type[1] = 0x2D;
+                else if (scrambler_subtype==2)
+                    next_lsf.type[1] = 0x4D;
             }
             else //no enc or subtype field, normal 3200 voice
             {
