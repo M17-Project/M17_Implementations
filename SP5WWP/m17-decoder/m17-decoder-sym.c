@@ -549,21 +549,30 @@ int main(int argc, char* argv[])
                     //The Signature is not encrypted
                     
                     //AES
-                    if(encryption==ENCR_AES && (fn % 0x8000)<0x7FFC)
+                    if(encryption==ENCR_AES)
                     {
                         memcpy(iv, lsf+14, 14);
                         iv[14] = frame_data[1] & 0x7F;
                         iv[15] = frame_data[2] & 0xFF;
-                        aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
+
+                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
+                        else if (!signed_tr)                    //non-signed stream
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
                     }
 
                     //Scrambler
-                    if(encryption==ENCR_SCRAM && (fn % 0x8000)<0x7FFC)
+                    if(encryption==ENCR_SCRAM)
                     {
                         if (fn != 0 && (fn % 0x8000)!=expected_next_fn) //frame skip, etc
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);
                         else if (fn == 0) scrambler_seed = scrambler_key; //reset back to key value
-                        scrambler_sequence_generator();
+
+                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                            scrambler_sequence_generator();
+                        else if (!signed_tr)                    //non-signed stream
+                            scrambler_sequence_generator();
+                        
                         for(uint8_t i=0; i<16; i++)
                         {
                             frame_data[i+3] ^= scr_bytes[i];
