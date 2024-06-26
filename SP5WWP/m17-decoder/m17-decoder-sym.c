@@ -105,10 +105,9 @@ uint32_t scrambler_seed_calculation(int8_t subtype, uint32_t key, int fn)
   }
 
   //truncate seed so subtype will continue to set properly on subsequent passes
-  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
-  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
-  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
-  else                        scrambler_seed &= 0xFF;
+  if      (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  else if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  else if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
 
   //debug
   //fprintf (stderr, "\nScrambler Key: 0x%06X; Seed: 0x%06X; Subtype: %02d; FN: %05d; ", key, lfsr, subtype, fn);
@@ -166,10 +165,9 @@ void scrambler_sequence_generator()
   scrambler_seed = lfsr;
 
   //truncate seed so subtype will continue to set properly on subsequent passes
-  if (scrambler_subtype == 0) scrambler_seed &= 0xFF;
-  if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
-  if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
-  else                        scrambler_seed &= 0xFF;
+  if      (scrambler_subtype == 0) scrambler_seed &= 0xFF;
+  else if (scrambler_subtype == 1) scrambler_seed &= 0xFFFF;
+  else if (scrambler_subtype == 2) scrambler_seed &= 0xFFFFFF;
 
   if (debug_mode > 1)
   {
@@ -551,20 +549,30 @@ int main(int argc, char* argv[])
                     //The Signature is not encrypted
                     
                     //AES
-                    if(encryption==ENCR_AES && fn<0x7FFC)
+                    if(encryption==ENCR_AES)
                     {
                         memcpy(iv, lsf+14, 14);
                         iv[14] = frame_data[1] & 0x7F;
                         iv[15] = frame_data[2] & 0xFF;
-                        aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
+
+                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
+                        else if (!signed_tr)                    //non-signed stream
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
                     }
 
                     //Scrambler
-                    if(encryption==ENCR_SCRAM && fn<0x7FFC)
+                    if(encryption==ENCR_SCRAM)
                     {
-                        if ((fn % 0x8000)!=expected_next_fn) //frame skip, etc
+                        if (fn != 0 && (fn % 0x8000)!=expected_next_fn) //frame skip, etc
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);
-                        scrambler_sequence_generator();
+                        else if (fn == 0) scrambler_seed = scrambler_key; //reset back to key value
+
+                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                            scrambler_sequence_generator();
+                        else if (!signed_tr)                    //non-signed stream
+                            scrambler_sequence_generator();
+                        
                         for(uint8_t i=0; i<16; i++)
                         {
                             frame_data[i+3] ^= scr_bytes[i];
@@ -651,11 +659,11 @@ int main(int argc, char* argv[])
                         else if(((type>>3)&3)==1)
                         {
                             printf("SCRAM ");
-                            if(((type>>5)&3)==1)
+                            if(((type>>5)&3)==0)
                                 printf("8-bit, ");
-                            else if(((type>>5)&3)==2)
+                            else if(((type>>5)&3)==1)
                                 printf("16-bit, ");
-                            else if(((type>>5)&3)==3)
+                            else if(((type>>5)&3)==2)
                                 printf("24-bit, ");
                         }
                         else if(((type>>3)&3)==2)
@@ -797,11 +805,11 @@ int main(int argc, char* argv[])
                     else if(((type>>3)&3)==1)
                     {
                         printf("SCRAM ");
-                        if(((type>>5)&3)==1)
+                        if(((type>>5)&3)==0)
                             printf("8-bit, ");
-                        else if(((type>>5)&3)==2)
+                        else if(((type>>5)&3)==1)
                             printf("16-bit, ");
-                        else if(((type>>5)&3)==3)
+                        else if(((type>>5)&3)==2)
                             printf("24-bit, ");
                     }
                     else if(((type>>3)&3)==2)
