@@ -1,6 +1,9 @@
 [submodule "libm17"]
 	path = libm17
 	url = https://github.com/M17-Project/libm17
-[submodule "tiny-AES-c"]
-	path = tiny-AES-c
-	url = https://github.com/kokke/tiny-AES-c
+[submodule "micro-ecc"]
+	path = micro-ecc
+	url = https://github.com/kmackay/micro-ecc
+[submodule "tinier-aes"]
+	path = tinier-aes
+	url = https://github.com/lwvmobile/tinier-aes

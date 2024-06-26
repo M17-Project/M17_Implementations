@@ -1,5 +1,5 @@
 m17-decoder-sym: m17-decoder-sym.c
-	gcc -I ../../libm17 -Wall -Wextra -O2 m17-decoder-sym.c -o m17-decoder-sym -lm -lm17
+	gcc -O2 -Wall -Wextra m17-decoder-sym.c ../../micro-ecc/uECC.c ../../tinier-aes/aes.c -o m17-decoder-sym -lm -lm17
 
 install:
 	sudo cp m17-decoder-sym /usr/local/bin
