@@ -555,22 +555,22 @@ int main(int argc, char* argv[])
                         iv[14] = frame_data[1] & 0x7F;
                         iv[15] = frame_data[2] & 0xFF;
 
-                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                        if(signed_str && (fn % 0x8000)<0x7FFC) //signed stream
                             aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
-                        else if (!signed_tr)                    //non-signed stream
+                        else if(!signed_str)                    //non-signed stream
                             aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, AES128); //hardcoded for now
                     }
 
                     //Scrambler
                     if(encryption==ENCR_SCRAM)
                     {
-                        if (fn != 0 && (fn % 0x8000)!=expected_next_fn) //frame skip, etc
+                        if(fn != 0 && (fn % 0x8000)!=expected_next_fn) //frame skip, etc
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);
-                        else if (fn == 0) scrambler_seed = scrambler_key; //reset back to key value
+                        else if(fn == 0) scrambler_seed = scrambler_key; //reset back to key value
 
-                        if (signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                        if(signed_str && (fn % 0x8000)<0x7FFC) //signed stream
                             scrambler_sequence_generator();
-                        else if (!signed_tr)                    //non-signed stream
+                        else if(!signed_str)                    //non-signed stream
                             scrambler_sequence_generator();
                         
                         for(uint8_t i=0; i<16; i++)
