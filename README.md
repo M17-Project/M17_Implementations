@@ -10,10 +10,8 @@ Written in C, it has all the components described by the protocol's specificatio
 - cyclic redundancy check (CRC) calculation (both LSF and arbitrary input),
 - callsign encoder and decoder
 
-There's no support for **any** encryption yet.
-
 ### Cloning
-Be sure to clone with `--recursive` to pull the linked libm17 repository, otherwise, building will fail.
+Be sure to clone with `--recursive` to pull the required linked repositories, otherwise, building will fail.
 ```
 git clone https://github.com/M17-Project/M17_Implementations.git --recursive
 ```
@@ -70,6 +68,30 @@ Hit the *Execute the flow graph* button in GNURadio and watch it roll.
 
 Terminal 2 should show similar results, with the Frame Number advancing each frame:
 ![image](https://user-images.githubusercontent.com/44336093/209792966-44a7813e-13b3-45d7-92f1-02bb1bdc219f.png)
+
+m17-coder-sym and m17-decoder-sym now offer support for both ECDSA (secp256r1 256-bit prime field Weierstrass curve) Stream Signature Verification, AES (128,192,256 bit) and Scrambler (8,16,24 bit) Stream Payload Encryption. See relevant input parameters below and also sample_* txt files provided in m17-coder-sym and m17-decoder-sym folders.
+
+Stream encoding (m17-decoder-sym) has optional input parameters, shown below.
+```
+-s - Private key for ECDSA signature, 32 bytes (-s [hex_string|key_file]),
+-K - AES encryption key (-K [hex_string|text_file]),
+-k - Scrambler encryption seed value (-k [hex_string]),
+-D - Debug mode,
+-h - help / print usage
+```
+
+Stream decoding (m17-decoder-sym) has optional input parameters, shown below.
+```
+-c - Display decoded callsigns,
+-v - Display Viterbi error metrics,
+-m - Display META fields,
+-l - Display LSF CRC checks,
+-d - Set syncword detection threshold (decimal value),
+-s - Public key for ECDSA signature, 64 bytes (-s [hex_string|key_file]),
+-K - AES encryption key (-K [hex_string|text_file]),
+-k - Scrambler encryption seed value (-k [hex_string]),
+-h - help / print usage
+```
 
 #### Packet mode
 Packet encoding is available with `m17-packet-encoder`. Its input parameters are shown below.
