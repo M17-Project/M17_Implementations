@@ -11,9 +11,9 @@ Written in C, it has all the components described by the protocol's specificatio
 - callsign encoder and decoder
 
 ### Cloning
-Be sure to clone with `--recursive` to pull the required linked repositories, otherwise, building will fail.
+Be sure to clone with `--recursive` to pull the required linked repositories, otherwise building will fail.
 ```
-git clone https://github.com/M17-Project/M17_Implementations.git --recursive
+git clone --recursive https://github.com/M17-Project/M17_Implementations.git
 ```
 
 ### Building
@@ -24,7 +24,7 @@ make
 make install
 sudo ldconfig
 ```
-Then, `cd` back up to the directory of interest and ```make``` again.
+Then, `cd` back up to the directory of interest (SP5WWP/m17-*) and ```make``` again.
 
 ### Capabilities
 Four executables are available:
@@ -35,7 +35,7 @@ syncword is detected, decoding process starts. The program expects a stream of s
 at the input. See the `/grc/symbol_recovery.grc` file for details.
 - `m17-packet-encode` is a handy tool for generating baseband (or a symbol stream, if needed) for
 M17 packets. The program expects a limited stream of raw data at the stdin. The number of bytes is set
-with the `-n` parameter, range 1 to 800.
+with the `-n` parameter, range 1 to 798.
 - `m17-packet-decode` decodes incoming packets.
 
 ### Testing
@@ -69,7 +69,10 @@ Hit the *Execute the flow graph* button in GNURadio and watch it roll.
 Terminal 2 should show similar results, with the Frame Number advancing each frame:
 ![image](https://user-images.githubusercontent.com/44336093/209792966-44a7813e-13b3-45d7-92f1-02bb1bdc219f.png)
 
-m17-coder-sym and m17-decoder-sym now offer support for both ECDSA (secp256r1 256-bit prime field Weierstrass curve) Stream Signature Verification, AES (128,192,256 bit) and Scrambler (8,16,24 bit) Stream Payload Encryption. See relevant input parameters below and also sample_* txt files provided in m17-coder-sym and m17-decoder-sym folders.
+##### Signatures and encryption
+`m17-coder-sym` and `m17-decoder-sym` now offer support for ECDSA (secp256r1 256-bit prime field Weierstrass curve) stream signing and verification, AES (128, 192, 256-bit) and scrambler (8, 16, 24-bit) stream payload encryption. See relevant input parameters below and `sample_*` text files provided in `m17-coder-sym` and `m17-decoder-sym` folders.
+
+The signature occupies 4 last data frames of the stream. It is generated after the data transmission has finished. When there's no more user data to transmit, a hash based on all the contents is calculated. That hash value is then signed with the user's private key.
 
 Stream encoding (m17-decoder-sym) has optional input parameters, shown below.
 ```
