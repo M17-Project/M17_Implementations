@@ -35,13 +35,17 @@ uint16_t pkt_sym_cnt=0;                                     //packet symbol coun
 uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
 uint8_t pkt_chunk[25+1];                                    //chunk of Packet Data, up to 25 bytes plus 6 bits of Packet Metadata
 uint8_t full_packet_data[33*25];                            //full packet data, bytes
-uint8_t out_type=0;                                         //output file type - 0 - raw int16 filtered samples (.rrc) - default
-                                                            //                   1 - int16 symbol stream
-                                                            //                   2 - binary stream (TODO)
-                                                            //                   3 - simple 10x upsample no filter
-                                                            //                   4 - S16-LE RRC filtered wav file
-                                                            //                   5 - float symbol output for m17-packet-decode
 
+typedef enum                                                //output file type
+{
+    OUT_TYPE_S16_RAW,                                       //0 - raw int16 filtered samples (.rrc) - default
+    OUT_TYPE_S16_SYMB,                                      //1 - int16 symbol stream
+    OUT_TYPE_BIN,                                           //2 - binary stream (TODO)
+    OUT_TYPE_UPS_NO_FLT,                                    //3 - simple 10x upsample no filter
+    OUT_TYPE_S16_RRC,                                       //4 - S16-LE RRC filtered wav file
+    OUT_TYPE_FLOAT                                          //5 - float symbol output for m17-packet-decode
+} out_type_t;
+out_type_t out_type=OUT_TYPE_S16_RAW;                       //output file type - raw int16 filtered samples (.rrc) - default
 
 uint8_t std_encode = 1;                                     //User Data is pre-encoded and read in over stdin, and not a switch string
 uint8_t sms_encode = 0;                                     //User Supplied Data is an SMS Text message, encode as such
@@ -242,27 +246,27 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='r') //-r - raw filtered output
                 {
-                    out_type=0; //default
+                    out_type=OUT_TYPE_S16_RAW; //default
                 }
                 else if(argv[i][1]=='s') //-s - symbols output
                 {
-                    out_type=1;
+                    out_type=OUT_TYPE_S16_SYMB;
                 }
                 else if(argv[i][1]=='x') //-x - binary output
                 {
-                    out_type=2;
+                    out_type=OUT_TYPE_BIN;
                 }
                 else if(argv[i][1]=='d') //-d - raw unfiltered output to wav file
                 {
-                    out_type=3;
+                    out_type=OUT_TYPE_UPS_NO_FLT;
                 }
                 else if(argv[i][1]=='w') //-w - rrc filtered output to wav file
                 {
-                    out_type=4;
+                    out_type=OUT_TYPE_S16_RRC;
                 }
                 else if(argv[i][1]=='f') //-f - float symbol output
                 {
-                    out_type=5;
+                    out_type=OUT_TYPE_FLOAT;
                 }
                 else
                 {
@@ -298,7 +302,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Filename not specified. Exiting...\n");
         return -1;
     }
-    else if(out_type==2)
+    else if(out_type==OUT_TYPE_BIN)
     {
         fprintf(stderr, "Binary output file type not supported yet. Exiting...\n");
         return -1;
@@ -504,7 +508,7 @@ int main(int argc, char* argv[])
         fill_syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
 
 
-    if (out_type == 3 || out_type == 4) //open wav file out
+    if (out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC) //open wav file out
     {
         sprintf (wav_name, "%s", fname);
         info.samplerate = 48000;
@@ -528,7 +532,7 @@ int main(int argc, char* argv[])
     }*/
 
     //standard mode - filtered baseband
-    if(out_type==0)
+    if(out_type==OUT_TYPE_S16_RAW)
     {
         float mem[FLT_LEN];
         float mac=0.0f;
@@ -560,7 +564,7 @@ int main(int argc, char* argv[])
         }
     }
     //standard mode - int16 symbol stream
-    else if(out_type==1)
+    else if(out_type==OUT_TYPE_S16_SYMB)
     {
         for(uint16_t i=0; i<pkt_sym_cnt; i++)
         {
@@ -570,7 +574,7 @@ int main(int argc, char* argv[])
     }
 
     //float symbol stream compatible with m17-packet-decode
-    else if(out_type==5)
+    else if(out_type==OUT_TYPE_FLOAT)
     {
         for(uint16_t i=0; i<pkt_sym_cnt; i++)
         {
@@ -580,7 +584,7 @@ int main(int argc, char* argv[])
     }
   
     //simple 10x upsample * 7168.0f
-    else if (out_type == 3)
+    else if (out_type == OUT_TYPE_UPS_NO_FLT)
     {   
 
         //array of upsample full_packet
@@ -608,7 +612,7 @@ int main(int argc, char* argv[])
     }
 
     //standard mode - filtered baseband (converted to wav)
-    else if(out_type == 4)
+    else if(out_type == OUT_TYPE_S16_RRC)
     {
 
         float mem[FLT_LEN];
@@ -642,13 +646,15 @@ int main(int argc, char* argv[])
     }
 
     //close file, depending on type opened
-    if (out_type == 3 || out_type == 4)
+    if(out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC)
     {
         sf_write_sync(wav);
         sf_close(wav);
     }
-    else fclose(fp);
+    else
+    {
+        fclose(fp);
+    }
     
-
 	return 0;
 }
