@@ -35,7 +35,7 @@ syncword is detected, decoding process starts. The program expects a stream of s
 at the input. See the `/grc/symbol_recovery.grc` file for details.
 - `m17-packet-encode` is a handy tool for generating baseband (or a symbol stream, if needed) for
 M17 packets. The program expects a limited stream of raw data at the stdin. The number of bytes is set
-with the `-n` parameter, range 1 to 798.
+with the `-n` parameter, range 1 to 823.
 - `m17-packet-decode` decodes incoming packets.
 
 ### Testing
@@ -104,7 +104,7 @@ Packet encoding is available with `m17-packet-encoder`. Its input parameters are
 -C - Channel Access Number (0..15, default - 0)
 -T - SMS Text Message (example: -T "Hello World! This is a text message")
 -R - Raw Hex Octets   (example: -R 010203040506070809)
--n - number of bytes, only when pre-encoded data passed over stdin (1 to 798)
+-n - number of bytes, only when pre-encoded data is passed over stdin (1 to 823)
 -o - output file path/name
 -x - binary output (M17 baseband as a packed bitstream)
 -r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol)
