@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
                     if(strlen(&argv[i+1][0])>0)
                     {
                         memset(text, 0, 825*sizeof(char));
-                        memcpy(text, argv[i+1], strlen(&argv[i+1][0]));
+                        memcpy(text, argv[i+1], strlen(argv[i+1])<=821 ? strlen(argv[i+1]) : 821);
                         std_encode = 0;
                         sms_encode = 1;
                         raw_encode = 0;
