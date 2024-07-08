@@ -97,49 +97,62 @@ void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
 	}
 }
 
-//convert a user string (as hex octets) into a uint8_t array for raw packet encoding
-void parse_raw_user_string(char* input)
+//convert a user string (as hex octets) into a uint8_t array
+uint16_t parse_raw_hex_string(uint8_t* dest, const char* inp)
 {
-    //since we want this as octets, get strlen value, then divide by two
-    uint16_t len = strlen((const char*)input);
+    uint16_t len = strlen(inp);
 
-    //if zero is returned, just do two
-    if(len == 0) len = 2;
+    if(len==0) return 0; //invalid length
 
-    //if odd number, then user didn't pass complete octets, but just add one to len value to make it even
-    if(len&1) len++;
+    //memset(dest, 0, len/2); //one character represents half of a byte
 
-    //divide by two to get octet len
-    len /= 2;
-
-    //sanity check, maximum strlen should not exceed 823*2=1646 octets for a raw packet encode
-    if(len > 1646) len = 1646;
-
-    //set num_bytes to len + 1
-    num_bytes = len + 0; //doing 0 instead, let user pass an extra 00 on the end if they want it there
-
-    char octet_char[3];
-    octet_char[2] = 0;
-    uint16_t k = 0;
-    uint16_t i = 0;
-
-    //debug
-    fprintf(stderr, "\nRaw Len: %d; Raw Octets:", len);
-
-    for(i = 0; i < len; i++)
+    if(!(len%2)) //length even?
     {
-        strncpy(octet_char, input+k, 2);
-        octet_char[2] = 0;
-        sscanf(octet_char, "%hhX", &raw[i]);
+        for(uint8_t i=0; i<len; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2]|=inp[i+1]-'0';
+        }
+    }
+    else
+    {
+        if(inp[0]>='a')
+            dest[0]|=inp[0]-'a'+10;
+        else if(inp[0]>='A')
+            dest[0]|=inp[0]-'A'+10;
+        else if(inp[0]>='0')
+            dest[0]|=inp[0]-'0';
 
-        //debug
-        // fprintf(stderr, " (%s)", octet_char);
-        fprintf(stderr, " %02X", raw[i]);
-
-        k += 2;
+        for(uint8_t i=1; i<len-1; i+=2)
+        {
+            if(inp[i]>='a')
+                dest[i/2+1]|=(inp[i]-'a'+10)*0x10;
+            else if(inp[i]>='A')
+                dest[i/2+1]|=(inp[i]-'A'+10)*0x10;
+            else if(inp[i]>='0')
+                dest[i/2+1]|=(inp[i]-'0')*0x10;
+            
+            if(inp[i+1]>='a')
+                dest[i/2+1]|=inp[i+1]-'a'+10;
+            else if(inp[i+1]>='A')
+                dest[i/2+1]|=inp[i+1]-'A'+10;
+            else if(inp[i+1]>='0')
+                dest[i/2+1]|=inp[i+1]-'0';
+        }
     }
 
-    fprintf(stderr, "\n");
+    return len%2 ? (len+1)/2 : len/2; //return how many bytes are used
 }
 
 //main routine
@@ -209,8 +222,9 @@ int main(int argc, char* argv[])
                 {
                     if(strlen(&argv[i+1][0])>0)
                     {
-                        memset (raw, 0, sizeof(raw));
-                        parse_raw_user_string (argv[i+1]);
+                        memset(raw, 0, sizeof(raw));
+                        num_bytes=parse_raw_hex_string(raw, argv[i+1]);
+                        //fprintf(stderr, "num_bytes=%d\n", num_bytes);
                         std_encode = 0;
                         sms_encode = 0;
                         raw_encode = 1;
@@ -294,24 +308,24 @@ int main(int argc, char* argv[])
     memset(full_packet_data, 0, 33*25);
 
     //SMS Encode (-T) ./m17-packet-encode -f -o float.sym -T 'This is a simple SMS text message sent over M17 Packet Data.'
-    if (sms_encode == 1)
+    if(sms_encode == 1)
     {
         num_bytes = strlen((const char*)text); //No need to check for zero return, since the default text string is supplied
-        if (num_bytes > 821) num_bytes = 821; //add the 0x05 protocol byte, 0x00 terminator, and 2 byte CRC to get to 825
+        if(num_bytes > 821) num_bytes = 821; //add the 0x05 protocol byte, 0x00 terminator, and 2 byte CRC to get to 825
         full_packet_data[0] = 0x05; //SMS Protocol
-        memcpy (full_packet_data+1, text, num_bytes);
+        memcpy(full_packet_data+1, text, num_bytes);
         num_bytes+= 2; //add one for 0x05 protocol byte and 1 for terminating 0x00 to get to 823
-        fprintf (stderr, "SMS: %s\n", full_packet_data+1);
+        fprintf(stderr, "SMS: %s\n", full_packet_data+1);
     }
 
     //RAW Encode (-R) ./m17-packet-encode -f -o float.sym -R 5B69001E135152397C0A0000005A45
-    else if (raw_encode == 1)
+    else if(raw_encode == 1)
     {
-        memcpy (full_packet_data, raw, num_bytes);
+        memcpy(full_packet_data, raw, num_bytes);
     }
 
     //Old Method pre-encoded data over stdin // echo -en "\x05Testing M17 packet mode.\x00" | ./m17-packet-encode -S N0CALL -D AB1CDE -C 7 -n 26 -f -o float.sym
-    else if (std_encode == 1)
+    else if(std_encode == 1)
     {
         //assert number of bytes
         if(num_bytes==0)
