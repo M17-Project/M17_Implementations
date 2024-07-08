@@ -23,7 +23,7 @@ uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpac
 uint8_t dst_raw[10]={'A', 'L', 'L', '\0'};                  //raw, unencoded destination address
 uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
-uint16_t num_bytes=0;                                       //number of bytes in packet, max (32 frames * 25 bytes) -2 CRC = 823
+uint16_t num_bytes=0;                                       //number of bytes in packet, max (33 frames * 25 bytes) - 2 (CRC) = 823
                                                             //Note: This value is 823 when using echo -en pre-encoded data or -R raw data as that already includes the protocol and 0x00 terminator
                                                             //When reading this string in from arg -T, the value is 821 as the 0x05 and 0x00 is added after the string conversion to octets
 uint8_t fname[128]={'\0'};                                  //output file
@@ -98,22 +98,22 @@ void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
 }
 
 //convert a user string (as hex octets) into a uint8_t array for raw packet encoding
-void parse_raw_user_string (char * input)
+void parse_raw_user_string(char* input)
 {
     //since we want this as octets, get strlen value, then divide by two
     uint16_t len = strlen((const char*)input);
 
     //if zero is returned, just do two
-    if (len == 0) len = 2;
+    if(len == 0) len = 2;
 
     //if odd number, then user didn't pass complete octets, but just add one to len value to make it even
-    if (len&1) len++;
+    if(len&1) len++;
 
     //divide by two to get octet len
     len /= 2;
 
-    //sanity check, maximum strlen should not exceed 823 octets for a raw packet encode
-    if (len > 823) len = 823;
+    //sanity check, maximum strlen should not exceed 823*2=1646 octets for a raw packet encode
+    if(len > 1646) len = 1646;
 
     //set num_bytes to len + 1
     num_bytes = len + 0; //doing 0 instead, let user pass an extra 00 on the end if they want it there
@@ -124,22 +124,22 @@ void parse_raw_user_string (char * input)
     uint16_t i = 0;
 
     //debug
-    fprintf (stderr, "\nRaw Len: %d; Raw Octets:", len);
+    fprintf(stderr, "\nRaw Len: %d; Raw Octets:", len);
 
-    for (i = 0; i < len; i++)
+    for(i = 0; i < len; i++)
     {
-        strncpy (octet_char, input+k, 2);
+        strncpy(octet_char, input+k, 2);
         octet_char[2] = 0;
-        sscanf (octet_char, "%hhX", &raw[i]);
+        sscanf(octet_char, "%hhX", &raw[i]);
 
         //debug
-        // fprintf (stderr, " (%s)", octet_char);
-        fprintf (stderr, " %02X", raw[i]);
+        // fprintf(stderr, " (%s)", octet_char);
+        fprintf(stderr, " %02X", raw[i]);
 
         k += 2;
     }
 
-    fprintf (stderr, "\n");
+    fprintf(stderr, "\n");
 }
 
 //main routine
@@ -199,7 +199,7 @@ int main(int argc, char* argv[])
                     if(strlen(&argv[i+1][0])>0)
                     {
                         memset(text, 0, 825*sizeof(char));
-                        memcpy(text, &argv[i+1][0], 821*sizeof(char));
+                        memcpy(text, argv[i+1], strlen(&argv[i+1][0]));
                         std_encode = 0;
                         sms_encode = 1;
                         raw_encode = 0;
