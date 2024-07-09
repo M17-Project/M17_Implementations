@@ -31,7 +31,7 @@ uint8_t fname[128]={'\0'};                                  //output file
 FILE* fp;
 float full_packet[36*192*10];                               //full packet, symbols as floats - 36 "frames" max (incl. preamble, LSF, EoT), 192 symbols each, sps=10:
                                                             //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
-uint16_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
+uint32_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
 uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
 uint8_t pkt_chunk[25+1];                                    //chunk of Packet Data, up to 25 bytes plus 6 bits of Packet Metadata
 uint8_t full_packet_data[33*25];                            //full packet data, bytes
@@ -53,53 +53,6 @@ uint8_t raw_encode = 0;                                     //User Supplied Data
 
 char   text[825] = "Default SMS Text message";              //SMS Text to Encode, default string.
 uint8_t raw[825];                                           //raw data that is converted from a string comprised of hex octets
-
-//type - 0 - preamble before LSF (standard)
-//type - 1 - preamble before BERT transmission
-void fill_preamble(float* out, const uint8_t type)
-{
-    if(type) //pre-BERT
-    {
-        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
-        {
-            out[2*i]  =-3.0;
-            out[2*i+1]=+3.0;
-        }
-    }
-    else //pre-LSF
-    {
-        for(uint16_t i=0; i<SYM_PER_FRA/2; i++) //40ms * 4800 = 192
-        {
-            out[2*i]  =+3.0;
-            out[2*i+1]=-3.0;
-        }
-    }
-}
-
-void fill_syncword(float* out, uint16_t* cnt, const uint16_t syncword)
-{
-    float symb=0.0f;
-
-    for(uint8_t i=0; i<16; i+=2)
-    {
-        symb=symbol_map[(syncword>>(14-i))&3];
-        out[*cnt]=symb;
-        (*cnt)++;
-    }
-}
-
-//fill packet symbols array with data (can be used for both LSF and frames)
-void fill_data(float* out, uint16_t* cnt, const uint8_t* in)
-{
-	float symb=0.0f;
-
-	for(uint16_t i=0; i<SYM_PER_PLD; i++) //40ms * 4800 - 8 (syncword)
-	{
-		symb=symbol_map[in[2*i]*2+in[2*i+1]];
-		out[*cnt]=symb;
-		(*cnt)++;
-	}
-}
 
 //convert a user string (as hex octets) into a uint8_t array
 uint16_t parse_raw_hex_string(uint8_t* dest, const char* inp)
@@ -385,11 +338,10 @@ int main(int argc, char* argv[])
 
     //fill preamble
     memset((uint8_t*)full_packet, 0, 36*192*10*sizeof(float));
-    fill_preamble(full_packet, 0);
-    pkt_sym_cnt=SYM_PER_FRA;
+    send_preamble(full_packet, &pkt_sym_cnt, 0); //type: pre-LSF
 
     //send LSF syncword
-    fill_syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
+    send_syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
 
     //reorder bits
     for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
@@ -408,7 +360,7 @@ int main(int argc, char* argv[])
     }
 
     //fill packet with LSF
-    fill_data(full_packet, &pkt_sym_cnt, rf_bits);
+    send_data(full_packet, &pkt_sym_cnt, rf_bits);
 
     //read Packet Data from variable
     pkt_cnt=0;
@@ -416,7 +368,7 @@ int main(int argc, char* argv[])
     while(num_bytes)
     {
         //send packet frame syncword
-        fill_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+        send_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
 
         //the following examples produce exactly 25 bytes, which exactly one frame, but >= meant this would never produce a final frame with EOT bit set
         //echo -en "\x05Testing M17 packet mo\x00" | ./m17-packet-encode -S N0CALL -D ALL -C 10 -n 23 -o float.sym -f
@@ -447,7 +399,7 @@ int main(int argc, char* argv[])
             }
 
             //fill packet with frame data
-            fill_data(full_packet, &pkt_sym_cnt, rf_bits);
+            send_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes-=25;
         }
@@ -479,7 +431,7 @@ int main(int argc, char* argv[])
             }
 
             //fill packet with frame data
-            fill_data(full_packet, &pkt_sym_cnt, rf_bits);
+            send_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes=0;
         }
@@ -505,7 +457,7 @@ int main(int argc, char* argv[])
 
     //send EOT
     for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
-        fill_syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
+        send_syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
 
 
     if (out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC) //open wav file out
