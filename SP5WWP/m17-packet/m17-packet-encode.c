@@ -344,20 +344,10 @@ int main(int argc, char* argv[])
     send_syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
 
     //reorder bits
-    for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-        rf_bits[i]=enc_bits[intrl_seq[i]];
+    reorder_bits(rf_bits, enc_bits);
 
     //randomize
-    for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-    {
-        if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-        {
-            if(rf_bits[i])
-                rf_bits[i]=0;
-            else
-                rf_bits[i]=1;
-        }
-    }
+    randomize_bits(rf_bits);
 
     //fill packet with LSF
     send_data(full_packet, &pkt_sym_cnt, rf_bits);
@@ -383,20 +373,10 @@ int main(int argc, char* argv[])
             conv_encode_packet_frame(enc_bits, pkt_chunk);
 
             //reorder bits
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                rf_bits[i]=enc_bits[intrl_seq[i]];
+            reorder_bits(rf_bits, enc_bits);
 
             //randomize
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-            {
-                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-                {
-                    if(rf_bits[i])
-                        rf_bits[i]=0;
-                    else
-                        rf_bits[i]=1;
-                }
-            }
+            randomize_bits(rf_bits);
 
             //fill packet with frame data
             send_data(full_packet, &pkt_sym_cnt, rf_bits);
@@ -415,20 +395,10 @@ int main(int argc, char* argv[])
             conv_encode_packet_frame(enc_bits, pkt_chunk);
 
             //reorder bits
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                rf_bits[i]=enc_bits[intrl_seq[i]];
+            reorder_bits(rf_bits, enc_bits);
 
             //randomize
-            for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-            {
-                if((rand_seq[i/8]>>(7-(i%8)))&1) //flip bit if '1'
-                {
-                    if(rf_bits[i])
-                        rf_bits[i]=0;
-                    else
-                        rf_bits[i]=1;
-                }
-            }
+            randomize_bits(rf_bits);
 
             //fill packet with frame data
             send_data(full_packet, &pkt_sym_cnt, rf_bits);
