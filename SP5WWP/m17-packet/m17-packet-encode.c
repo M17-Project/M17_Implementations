@@ -426,9 +426,7 @@ int main(int argc, char* argv[])
     fprintf(stderr, "\n");
 
     //send EOT
-    for(uint8_t i=0; i<SYM_PER_FRA/SYM_PER_SWD; i++) //192/8=24
-        send_syncword(full_packet, &pkt_sym_cnt, EOT_MRKR);
-
+    send_eot(full_packet, &pkt_sym_cnt);
 
     if (out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC) //open wav file out
     {
