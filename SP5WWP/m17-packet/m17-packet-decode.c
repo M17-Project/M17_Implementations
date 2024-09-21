@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 
 //libm17
 #include <m17.h>
@@ -121,8 +122,12 @@ int main(int argc, char* argv[])
         {
             pld[pushed++]=sample;
 
-            if(pushed==SYM_PER_PLD)
+            if(pushed==SYM_PER_PLD) //frame acquired
             {
+                //get current time
+                time_t now = time(NULL);
+				struct tm* tm_now = localtime(&now);
+
                 for(uint8_t i=0; i<SYM_PER_PLD; i++)
                 {
                     //bit 0
@@ -186,6 +191,11 @@ int main(int argc, char* argv[])
                     uint8_t rx_last=frame_data[26]>>7;
                     //fprintf(stderr, "FN%d, (%d)\n", rx_fn, rx_last);
 
+                    if(show_viterbi)
+                    {
+                        fprintf(stderr, "   \033[93mFrame %d Viterbi error:\033[39m %1.1f\n", rx_last?last_fn+1:rx_fn, (float)e/0xFFFF);
+                    }
+
                     //copy data - might require some fixing
                     if(rx_fn<=31 && rx_fn==last_fn+1 && !rx_last)
                     {
@@ -196,52 +206,50 @@ int main(int argc, char* argv[])
                     {
                         memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn);
 
+                        fprintf(stderr, " \033[93mContent\033[39m\n");
+
                         //dump data
                         if(packet_data[0]==0x05) //if a text message
                         {
+                            fprintf(stderr, " ├ \033[93mType:\033[39m SMS\n");
+
                             if(skip_payload_crc_check)
                             {
-                                fprintf(stderr, "%s\n", &packet_data[1]);
+                                fprintf(stderr, " └ \033[93mText:\033[39m %s\n", &packet_data[1]);
                             }
                             else
                             {
                                 uint16_t p_len=strlen((const char*)packet_data);
-                                uint16_t p_crc=CRC_M17(packet_data, p_len+1);
-                                fprintf(stderr, "Data CRC: rx=%02X%02X calc=%04X\n", packet_data[p_len+1], packet_data[p_len+2], p_crc);
-                                if(p_crc==(uint16_t)packet_data[p_len+1]*256+(uint16_t)packet_data[p_len+2])
-                                {
-                                    fprintf(stderr, "SMS: %s\n", &packet_data[1]);
-                                }
+
+                                fprintf(stderr, " ├ \033[93mText:\033[39m %s\n", &packet_data[1]);
+
+                                //CRC
+                                fprintf(stderr, " └ \033[93mPayload CRC:\033[39m");
+                                if(CRC_M17(packet_data, p_len+3)) //3: terminating null plus a 2-byte CRC
+                                    fprintf(stderr, " \033[91mmismatch\033[39m\n");
+                                else
+                                    fprintf(stderr, " \033[92mmatch\033[39m\n");
                             }
                         }
                         else
                         {
                             if(!text_only)
                             {
-                                fprintf(stderr, "PKT:");
+                                fprintf(stderr, " └ \033[93mPayload:\033[39m ");
                                 for(uint16_t i=0; i<(last_fn+1)*25+rx_fn; i++)
                                 {
-                                    if ( (i != 0) && ((i%25) == 0) )
-                                        fprintf(stderr, "\n    ");
+                                    if(i!=0 && (i%25)==0)
+                                        fprintf(stderr, "\n     ");
                                     fprintf(stderr, " %02X", packet_data[i]);
                                 }
                                 fprintf(stderr, "\n");
                             }
                         }
                     }
-
-                    if(show_viterbi)
-                    {
-                        fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
-                    }
-                    else
-                    {
-                        //fprintf(stderr, "\n");
-                    }
                 }
                 else //if it is LSF
                 {
-                    //fprintf(stderr, "LSF\n");
+                    fprintf(stderr, "\033[96m[%02d:%02d:%02d] \033[92mPacket received\033[39m\n", tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
 
                     //decode
                     uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
@@ -261,56 +269,50 @@ int main(int argc, char* argv[])
                             decode_callsign_bytes(d_src, &lsf[6]);
 
                             //DST
-                            fprintf(stderr, "DST: %-9s ", d_dst);
+                            fprintf(stderr, " ├ \033[93mDestination:\033[39m %s\n", d_dst);
 
                             //SRC
-                            fprintf(stderr, "SRC: %-9s ", d_src);
+                            fprintf(stderr, " ├ \033[93mSource:\033[39m %s\n", d_src);
                         }
                         else
                         {
                             //DST
-                            fprintf(stderr, "DST: ");
+                            fprintf(stderr, " ├ \033[93mDestination:\033[39m ");
                             for(uint8_t i=0; i<6; i++)
                                 fprintf(stderr, "%02X", lsf[i]);
-                            fprintf(stderr, " ");
+                            fprintf(stderr, "\n");
 
                             //SRC
-                            fprintf(stderr, "SRC: ");
+                            fprintf(stderr, " ├ \033[93mSource:\033[39m ");
                             for(uint8_t i=0; i<6; i++)
                                 fprintf(stderr, "%02X", lsf[6+i]);
-                            fprintf(stderr, " ");
+                            fprintf(stderr, "\n");
                         }
 
                         //TYPE
-                        fprintf(stderr, "TYPE: ");
+                        fprintf(stderr, " ├ \033[93mType:\033[39m ");
                         for(uint8_t i=0; i<2; i++)
                             fprintf(stderr, "%02X", lsf[12+i]);
-                        fprintf(stderr, " ");
+                        fprintf(stderr, "\n");
 
                         //META
-                        fprintf(stderr, "META: ");
+                        fprintf(stderr, " ├ \033[93mMeta:\033[39m ");
                         for(uint8_t i=0; i<14; i++)
                             fprintf(stderr, "%02X", lsf[14+i]);
-                        fprintf(stderr, " ");
-
-                        //CRC
-                        //fprintf(stderr, "CRC: ");
-                        //for(uint8_t i=0; i<2; i++)
-                            //fprintf(stderr, "%02X", lsf[28+i]);
-                        if(CRC_M17(lsf, 30))
-                            fprintf(stderr, "LSF_CRC_ERR");
-                        else
-                            fprintf(stderr, "LSF_CRC_OK ");
+                        fprintf(stderr, "\n");
 
                         //Viterbi decoder errors
                         if(show_viterbi)
                         {
-                            fprintf(stderr, " e=%1.1f\n", (float)e/0xFFFF);
+                            fprintf(stderr, " ├ \033[93mLSF Viterbi error:\033[39m %1.1f\n", (float)e/0xFFFF);
                         }
+
+                        //CRC
+                        fprintf(stderr, " └ \033[93mLSF CRC:\033[39m");
+                        if(CRC_M17(lsf, 30))
+                            fprintf(stderr, " \033[91mmismatch\033[39m\n");
                         else
-                        {
-                            fprintf(stderr, "\n");
-                        }
+                            fprintf(stderr, " \033[92mmatch\033[39m\n");
                     }
                 }
 
