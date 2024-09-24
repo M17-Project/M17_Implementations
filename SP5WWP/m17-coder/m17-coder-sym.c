@@ -21,7 +21,7 @@
 //../../micro-ecc/curve-specific.inc:544:59: warning: unused parameter ‘curve’ [-Wunused-parameter]
 //544 | static void mod_sqrt_secp224r1(uECC_word_t *a, uECC_Curve curve) {
 
-struct LSF lsf, next_lsf;
+lsf_t lsf, next_lsf;
 
 uint8_t lich[6];                    //48 bits packed raw, unencoded LICH
 uint8_t lich_encoded[12];           //96 bits packed, encoded LICH

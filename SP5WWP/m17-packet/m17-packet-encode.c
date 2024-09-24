@@ -10,7 +10,7 @@
 
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
 
-struct LSF lsf;
+lsf_t lsf;
 
 char wav_name[1024];                                        //name of wav file to output to
 SNDFILE *wav;                                               //sndfile wav file
