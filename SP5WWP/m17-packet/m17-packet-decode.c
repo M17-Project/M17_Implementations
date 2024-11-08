@@ -75,11 +75,8 @@ int main(int argc, char* argv[])
         }
     }
 
-    while(1)
+    while(fread((uint8_t*)&sample, 4, 1, stdin) > 0)
     {
-        //wait for another symbol
-        while(fread((uint8_t*)&sample, 4, 1, stdin)<1);
-
         if(!syncd)
         {
             //push new symbol
