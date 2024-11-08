@@ -97,7 +97,7 @@ Stream decoding (m17-decoder-sym) has optional input parameters, shown below.
 ```
 
 #### Packet mode
-Packet encoding is available with `m17-packet-encoder`. Its input parameters are shown below.
+Packet encoding is available with `m17-packet-encode`. Its input parameters are shown below.
 ```
 -S - source callsign (uppercase alphanumeric string) max. 9 characters
 -D - destination callsign (uppercase alphanumeric string) or ALL for broadcast
