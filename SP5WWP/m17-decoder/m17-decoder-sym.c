@@ -572,6 +572,7 @@ int main(int argc, char* argv[])
                             scrambler_sequence_generator();
                         else if(!signed_str)                    //non-signed stream
                             scrambler_sequence_generator();
+                        else memset(scr_bytes, 0, sizeof(scr_bytes)); //zero out stale scrambler bytes so they aren't applied to the sig frames
                         
                         for(uint8_t i=0; i<16; i++)
                         {
