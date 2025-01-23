@@ -408,7 +408,7 @@ int main(int argc, char* argv[])
 
     //send out the preamble
     frame_buff_cnt=0;
-	send_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+	gen_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
     if(debug_mode==1)
@@ -499,7 +499,7 @@ int main(int argc, char* argv[])
 
             //send LSF syncword
             frame_buff_cnt=0;
-			send_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
+			gen_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
             fwrite((uint8_t*)frame_buff, SYM_PER_SWD*sizeof(float), 1, stdout);
 
             //encode LSF data
@@ -513,7 +513,7 @@ int main(int argc, char* argv[])
 
 			//send LSF data
             frame_buff_cnt=0;
-			send_data(frame_buff, &frame_buff_cnt, rf_bits);
+			gen_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
 
             //check the SIGNED STREAM flag
@@ -613,14 +613,14 @@ int main(int argc, char* argv[])
 
             //send frame
             frame_buff_cnt=0;
-            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+            gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
             extract_LICH(lich, lich_cnt, &lsf);
             encode_LICH(lich_encoded, lich);
             unpack_LICH(enc_bits, lich_encoded);
             conv_encode_stream_frame(&enc_bits[96], data, fn);
             reorder_bits(rf_bits, enc_bits);
             randomize_bits(rf_bits);
-            send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            gen_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             fn = (fn + 1) % 0x8000; //increment FN
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
@@ -659,7 +659,7 @@ int main(int argc, char* argv[])
 
             //send frame
             frame_buff_cnt=0;
-            send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+            gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
             extract_LICH(lich, lich_cnt, &lsf);
             encode_LICH(lich_encoded, lich);
             unpack_LICH(enc_bits, lich_encoded);
@@ -669,7 +669,7 @@ int main(int argc, char* argv[])
                 conv_encode_stream_frame(&enc_bits[96], data, fn);
             reorder_bits(rf_bits, enc_bits);
             randomize_bits(rf_bits);
-            send_data(frame_buff, &frame_buff_cnt, rf_bits);
+            gen_data(frame_buff, &frame_buff_cnt, rf_bits);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
 
@@ -698,14 +698,14 @@ int main(int argc, char* argv[])
                     fprintf(stderr, "\n");*/
 
                     frame_buff_cnt=0;
-                    send_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
+                    gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
                     extract_LICH(lich, lich_cnt, &lsf);
                     encode_LICH(lich_encoded, lich);
                     unpack_LICH(enc_bits, lich_encoded);
                     conv_encode_stream_frame(&enc_bits[96], &sig[i*16], fn);
                     reorder_bits(rf_bits, enc_bits);
                     randomize_bits(rf_bits);
-                    send_data(frame_buff, &frame_buff_cnt, rf_bits);
+                    gen_data(frame_buff, &frame_buff_cnt, rf_bits);
                     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
                     fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
                     lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
@@ -743,7 +743,7 @@ int main(int argc, char* argv[])
 
             //send EOT frame
             frame_buff_cnt=0;
-            send_eot(frame_buff, &frame_buff_cnt);
+            gen_eot(frame_buff, &frame_buff_cnt);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             //fprintf(stderr, "Stream has ended. Exiting.\n");
         }

@@ -338,10 +338,10 @@ int main(int argc, char* argv[])
 
     //fill preamble
     memset((uint8_t*)full_packet, 0, 36*192*10*sizeof(float));
-    send_preamble(full_packet, &pkt_sym_cnt, 0); //type: pre-LSF
+    gen_preamble(full_packet, &pkt_sym_cnt, 0); //type: pre-LSF
 
     //send LSF syncword
-    send_syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
+    gen_syncword(full_packet, &pkt_sym_cnt, SYNC_LSF);
 
     //reorder bits
     reorder_bits(rf_bits, enc_bits);
@@ -350,7 +350,7 @@ int main(int argc, char* argv[])
     randomize_bits(rf_bits);
 
     //fill packet with LSF
-    send_data(full_packet, &pkt_sym_cnt, rf_bits);
+    gen_data(full_packet, &pkt_sym_cnt, rf_bits);
 
     //read Packet Data from variable
     pkt_cnt=0;
@@ -358,7 +358,7 @@ int main(int argc, char* argv[])
     while(num_bytes)
     {
         //send packet frame syncword
-        send_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
+        gen_syncword(full_packet, &pkt_sym_cnt, SYNC_PKT);
 
         //the following examples produce exactly 25 bytes, which exactly one frame, but >= meant this would never produce a final frame with EOT bit set
         //echo -en "\x05Testing M17 packet mo\x00" | ./m17-packet-encode -S N0CALL -D ALL -C 10 -n 23 -o float.sym -f
@@ -379,7 +379,7 @@ int main(int argc, char* argv[])
             randomize_bits(rf_bits);
 
             //fill packet with frame data
-            send_data(full_packet, &pkt_sym_cnt, rf_bits);
+            gen_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes-=25;
         }
@@ -401,7 +401,7 @@ int main(int argc, char* argv[])
             randomize_bits(rf_bits);
 
             //fill packet with frame data
-            send_data(full_packet, &pkt_sym_cnt, rf_bits);
+            gen_data(full_packet, &pkt_sym_cnt, rf_bits);
 
             num_bytes=0;
         }
@@ -426,7 +426,7 @@ int main(int argc, char* argv[])
     fprintf(stderr, "\n");
 
     //send EOT
-    send_eot(full_packet, &pkt_sym_cnt);
+    gen_eot(full_packet, &pkt_sym_cnt);
 
     if (out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC) //open wav file out
     {
