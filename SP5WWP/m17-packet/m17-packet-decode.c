@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
                     }
                     else if(rx_last)
                     {
-                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn);
+                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn<25 ? rx_fn : 25);  //prevent copying too much data (beyond frame_data end)
                         uint16_t p_len=strlen((const char*)packet_data);
 
                         if(show_errorless==0 || (show_errorless==1 && CRC_M17(packet_data, p_len+3)==0))
