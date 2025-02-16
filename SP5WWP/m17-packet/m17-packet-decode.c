@@ -214,6 +214,12 @@ int main(int argc, char* argv[])
                         {
                             fprintf(stderr, " \033[93mContent\033[39m\n");
 
+                            //DEBUG
+                            /*fprintf(stderr, " └ ");
+                            for(uint8_t i=0; i<p_len+3; i++)
+                                fprintf(stderr, "%02X ", packet_data[i]);
+                            fprintf(stderr, "(CRC=%04X)\n", CRC_M17(packet_data, p_len+1));*/
+
                             //dump data
                             if(packet_data[0]==0x05) //if a text message
                             {
