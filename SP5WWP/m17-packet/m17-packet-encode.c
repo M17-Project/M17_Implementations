@@ -322,7 +322,7 @@ int main(int argc, char* argv[])
     #endif
     fprintf(stderr, "CAN: %02d\n", can);
     fprintf(stderr, "Data CRC:\t%04hX\n", packet_crc);
-    type=((uint16_t)0x01<<1)|((uint16_t)can<<7); //packet mode, content: data
+    type=M17_TYPE_PACKET | M17_TYPE_CAN(can); //packet mode
     lsf.type[0]=(uint16_t)type>>8;
     lsf.type[1]=(uint16_t)type&0xFF;
     memset(&lsf.meta, 0, 112/8);
