@@ -7,7 +7,7 @@
 //libm17
 #include <m17.h>
 
-#define DIST_THRESH					2.0f //distance threshold for the L2 metric (for syncword detection)
+#define DIST_THRESH					5.0f //distance threshold for the L2 metric (for syncword detection)
 
 float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
@@ -16,8 +16,8 @@ float pld[SYM_PER_PLD];             //raw frame symbols
 uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
 uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
 
-uint8_t lsf[30+1];                  //complete LSF (one byte extra needed for the Viterbi decoder)
-uint8_t frame_data[26+1];           //decoded frame data, 206 bits, plus 4 flushing bits
+lsf_t lsf;                          //complete LSF
+uint8_t frame_data[26];             //decoded frame data, 206 bits
 uint8_t packet_data[33*25];         //whole packet data
 
 uint8_t syncd=0;                    //syncword found?
@@ -131,67 +131,14 @@ int main(int argc, char* argv[])
                 time_t now = time(NULL);
 				struct tm* tm_now = localtime(&now);
 
-                for(uint8_t i=0; i<SYM_PER_PLD; i++)
-                {
-                    //bit 0
-                    if(pld[i]>=symbol_list[3])
-                    {
-                        soft_bit[i*2+1]=0xFFFF;
-                    }
-                    else if(pld[i]>=symbol_list[2])
-                    {
-                        soft_bit[i*2+1]=-(float)0xFFFF/(symbol_list[3]-symbol_list[2])*symbol_list[2]+pld[i]*(float)0xFFFF/(symbol_list[3]-symbol_list[2]);
-                    }
-                    else if(pld[i]>=symbol_list[1])
-                    {
-                        soft_bit[i*2+1]=0x0000;
-                    }
-                    else if(pld[i]>=symbol_list[0])
-                    {
-                        soft_bit[i*2+1]=(float)0xFFFF/(symbol_list[1]-symbol_list[0])*symbol_list[1]-pld[i]*(float)0xFFFF/(symbol_list[1]-symbol_list[0]);
-                    }
-                    else
-                    {
-                        soft_bit[i*2+1]=0xFFFF;
-                    }
-
-                    //bit 1
-                    if(pld[i]>=symbol_list[2])
-                    {
-                        soft_bit[i*2]=0x0000;
-                    }
-                    else if(pld[i]>=symbol_list[1])
-                    {
-                        soft_bit[i*2]=0x7FFF-pld[i]*(float)0xFFFF/(symbol_list[2]-symbol_list[1]);
-                    }
-                    else
-                    {
-                        soft_bit[i*2]=0xFFFF;
-                    }
-                }
-
-                //derandomize
-                for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                {
-                    if((rand_seq[i/8]>>(7-(i%8)))&1) //soft XOR. flip soft bit if "1"
-                        soft_bit[i]=0xFFFF-soft_bit[i];
-                }
-
-                //deinterleave
-                for(uint16_t i=0; i<SYM_PER_PLD*2; i++)
-                {
-                    d_soft_bit[i]=soft_bit[intrl_seq[i]];
-                }
-
                 //if it is a frame
                 if(!fl)
                 {
-                    //decode
-                    uint32_t e=viterbi_decode_punctured(frame_data, d_soft_bit, puncture_pattern_3, SYM_PER_PLD*2, 8);
+                    //decode packet frame
+                    uint8_t rx_fn, rx_last;
+                    uint32_t e=decode_pkt_frame(frame_data, &rx_last, &rx_fn, pld);
 
                     //dump FN
-                    uint8_t rx_fn=(frame_data[26]>>2)&0x1F;
-                    uint8_t rx_last=frame_data[26]>>7;
                     //fprintf(stderr, "FN%d, (%d)\n", rx_fn, rx_last);
 
                     if(show_viterbi)
@@ -202,12 +149,12 @@ int main(int argc, char* argv[])
                     //copy data - might require some fixing
                     if(rx_fn<=31 && rx_fn==last_fn+1 && !rx_last)
                     {
-                        memcpy(&packet_data[rx_fn*25], &frame_data[1], 25);
+                        memcpy(&packet_data[rx_fn*25], frame_data, 25);
                         last_fn++;
                     }
                     else if(rx_last)
                     {
-                        memcpy(&packet_data[(last_fn+1)*25], &frame_data[1], rx_fn<25 ? rx_fn : 25);  //prevent copying too much data (beyond frame_data end)
+                        memcpy(&packet_data[(last_fn+1)*25], frame_data, rx_fn<25 ? rx_fn : 25);  //prevent copying too much data (beyond frame_data end)
                         uint16_t p_len=strlen((const char*)packet_data);
 
                         if(show_errorless==0 || (show_errorless==1 && CRC_M17(packet_data, p_len+3)==0))
@@ -260,14 +207,12 @@ int main(int argc, char* argv[])
                 }
                 else //if it is LSF
                 {
-                    //decode
-                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
+                    //decode LSF
+                    uint32_t e=decode_LSF(&lsf, pld);
 
-                    //shift the buffer 1 position left - get rid of the encoded flushing bits
-                    for(uint8_t i=0; i<30; i++)
-                        lsf[i]=lsf[i+1];
+                    uint16_t crc=((uint16_t)lsf.crc[0]<<8)|lsf.crc[1];
 
-                    if(show_errorless==0 || (show_errorless==1 && CRC_M17(lsf, 30)==0))
+                    if(show_errorless==0 || (show_errorless==1 && LSF_CRC(&lsf)==crc))
                     {
                         fprintf(stderr, "\033[96m[%02d:%02d:%02d] \033[92mPacket received\033[39m\n", tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec);
 
@@ -278,8 +223,8 @@ int main(int argc, char* argv[])
                             {
                                 uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                                decode_callsign_bytes(d_dst, &lsf[0]);
-                                decode_callsign_bytes(d_src, &lsf[6]);
+                                decode_callsign_bytes(d_dst, lsf.dst);
+                                decode_callsign_bytes(d_src, lsf.src);
 
                                 //DST
                                 fprintf(stderr, " ├ \033[93mDestination:\033[39m %s\n", d_dst);
@@ -292,26 +237,26 @@ int main(int argc, char* argv[])
                                 //DST
                                 fprintf(stderr, " ├ \033[93mDestination:\033[39m ");
                                 for(uint8_t i=0; i<6; i++)
-                                    fprintf(stderr, "%02X", lsf[i]);
+                                    fprintf(stderr, "%02X", lsf.dst[i]);
                                 fprintf(stderr, "\n");
 
                                 //SRC
                                 fprintf(stderr, " ├ \033[93mSource:\033[39m ");
                                 for(uint8_t i=0; i<6; i++)
-                                    fprintf(stderr, "%02X", lsf[6+i]);
+                                    fprintf(stderr, "%02X", lsf.src[i]);
                                 fprintf(stderr, "\n");
                             }
 
                             //TYPE
                             fprintf(stderr, " ├ \033[93mType:\033[39m ");
                             for(uint8_t i=0; i<2; i++)
-                                fprintf(stderr, "%02X", lsf[12+i]);
+                                fprintf(stderr, "%02X", lsf.type[i]);
                             fprintf(stderr, "\n");
 
                             //META
                             fprintf(stderr, " ├ \033[93mMeta:\033[39m ");
                             for(uint8_t i=0; i<14; i++)
-                                fprintf(stderr, "%02X", lsf[14+i]);
+                                fprintf(stderr, "%02X", lsf.meta[i]);
                             fprintf(stderr, "\n");
 
                             //Viterbi decoder errors
@@ -322,7 +267,7 @@ int main(int argc, char* argv[])
 
                             //CRC
                             fprintf(stderr, " └ \033[93mLSF CRC:\033[39m");
-                            if(CRC_M17(lsf, 30))
+                            if(LSF_CRC(&lsf)!=crc)
                                 fprintf(stderr, " \033[91mmismatch\033[39m\n");
                             else
                                 fprintf(stderr, " \033[92mmatch\033[39m\n");
