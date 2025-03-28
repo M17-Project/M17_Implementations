@@ -8,7 +8,10 @@
 //libm17
 #include <m17.h>
 
+#define BSB_SPS         10                                  //samples per symbol
+#define FLT_SPAN        8                                   //baseband RRC filter span in symbols
 #define FLT_LEN         (BSB_SPS*FLT_SPAN+1)                //for 48kHz sample rate this is 81
+#define RRC_DEV         7168.0f                             //deviation for +1.0 symbol
 
 lsf_t lsf;
 
