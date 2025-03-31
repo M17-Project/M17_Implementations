@@ -23,11 +23,6 @@
 
 lsf_t lsf, next_lsf;
 
-uint8_t lich[6];                    //48 bits packed raw, unencoded LICH
-uint8_t lich_encoded[12];           //96 bits packed, encoded LICH
-uint8_t enc_bits[SYM_PER_PLD*2];    //type-2 bits, unpacked
-uint8_t rf_bits[SYM_PER_PLD*2];     //type-4 bits, unpacked
-
 float frame_buff[192];
 uint32_t frame_buff_cnt;
 
@@ -408,57 +403,48 @@ int main(int argc, char* argv[])
 
     //send out the preamble
     frame_buff_cnt=0;
-	gen_preamble(frame_buff, &frame_buff_cnt, 0); //0 - LSF preamble, as opposed to 1 - BERT preamble
+	gen_preamble(frame_buff, &frame_buff_cnt, PREAM_LSF);
     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
     if(debug_mode==1)
     {
-        //destination set to "ALL"
-        memset(lsf.dst, 0xFF, 6*sizeof(uint8_t));
+        //destination set to "@ALL"
+        encode_callsign_bytes(lsf.dst, (uint8_t*)"@ALL");
 
         //source set to "N0CALL"
-        lsf.src[0] = 0x00;
-        lsf.src[1] = 0x00;
-        lsf.src[2] = 0x4B;
-        lsf.src[3] = 0x13;
-        lsf.src[4] = 0xD1;
-        lsf.src[5] = 0x06;
+        encode_callsign_bytes(lsf.src, (uint8_t*)"N0CALL");
+
+        //no enc or subtype field, normal 3200 voice
+        uint16_t type = M17_TYPE_STREAM | M17_TYPE_VOICE | M17_TYPE_CAN(0);
 
         if(encryption==ENCR_AES) //AES ENC, 3200 voice
         {
-            lsf.type[0] = 0x03;
-            lsf.type[1] = 0x95;
+            //TODO: define the key length! this code sets it to 256-bit
+            type |= M17_TYPE_ENCR_AES | M17_TYPE_ENCR_AES256;
         }
         else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
         {
-            lsf.type[0] = 0x00;
-            lsf.type[1] = 0x00;
             if (scrambler_subtype==0)
-                lsf.type[1] = 0x0D;
+                type |= M17_TYPE_ENCR_SCRAM_8;
             else if (scrambler_subtype==1)
-                lsf.type[1] = 0x2D;
+                type |= M17_TYPE_ENCR_SCRAM_16;
             else if (scrambler_subtype==2)
-                lsf.type[1] = 0x4D;
-
-        }
-        else //no enc or subtype field, normal 3200 voice
-        {
-            lsf.type[0] = 0x00;
-            lsf.type[1] = 0x05;
+                type |= M17_TYPE_ENCR_SCRAM_24;
         }
 
         //a signature key is loaded, OR this bit
         if(priv_key_loaded)
         {
             signed_str = 1;
-            lsf.type[0] |= 0x8;
+            type |= M17_TYPE_SIGNED;
         }
+
+        lsf.type[0]=(uint16_t)type>>8;
+        lsf.type[1]=(uint16_t)type&0xFF;
             
         //calculate LSF CRC (unclear whether or not this is only 
         //needed here for debug, or if this is missing on every initial LSF)
-        uint16_t ccrc=LSF_CRC(&lsf);
-        lsf.crc[0]=ccrc>>8;
-        lsf.crc[1]=ccrc&0xFF;
+        update_LSF_CRC(&lsf);
 
         finished = 0;
 
@@ -485,9 +471,7 @@ int main(int argc, char* argv[])
         iv[15] = (fn >> 0) & 0xFF;
 
         //re-calculate LSF CRC with IV insertion
-        uint16_t ccrc=LSF_CRC(&lsf);
-        lsf.crc[0]=ccrc>>8;
-        lsf.crc[1]=ccrc&0xFF;
+        update_LSF_CRC(&lsf);
     }
 
     while(!finished)
@@ -497,24 +481,9 @@ int main(int argc, char* argv[])
             //debug
             //fprintf(stderr, "LSF\n");
 
-            //send LSF syncword
-            frame_buff_cnt=0;
-			gen_syncword(frame_buff, &frame_buff_cnt, SYNC_LSF);
-            fwrite((uint8_t*)frame_buff, SYM_PER_SWD*sizeof(float), 1, stdout);
-
-            //encode LSF data
-            conv_encode_LSF(enc_bits, &lsf);
-
-            //reorder bits
-            reorder_bits(rf_bits, enc_bits);
-
-            //randomize
-            randomize_bits(rf_bits);
-
-			//send LSF data
-            frame_buff_cnt=0;
-			gen_data(frame_buff, &frame_buff_cnt, rf_bits);
-            fwrite((uint8_t*)frame_buff, SYM_PER_PLD*sizeof(float), 1, stdout);
+            //send LSF
+            gen_frame(frame_buff, NULL, FRAME_LSF, &lsf, 0, 0);
+            fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
 
             //check the SIGNED STREAM flag
             signed_str=(lsf.type[0]>>3)&1;
@@ -526,41 +495,35 @@ int main(int argc, char* argv[])
         if(debug_mode==1)
         {
             //destination set to "ALL"
-            memset(next_lsf.dst, 0xFF, 6*sizeof(uint8_t));
+            encode_callsign_bytes(next_lsf.dst, (uint8_t*)"@ALL");
 
             //source  set to "N0CALL"
-            next_lsf.src[0] = 0x00;
-            next_lsf.src[1] = 0x00;
-            next_lsf.src[2] = 0x4B;
-            next_lsf.src[3] = 0x13;
-            next_lsf.src[4] = 0xD1;
-            next_lsf.src[5] = 0x06;
+            encode_callsign_bytes(next_lsf.dst, (uint8_t*)"N0CALL");
+
+            //no enc or subtype field, normal 3200 voice
+            uint16_t type = M17_TYPE_STREAM | M17_TYPE_VOICE | M17_TYPE_CAN(0);
 
             if(encryption==ENCR_AES) //AES ENC, 3200 voice
             {
-                next_lsf.type[0] = 0x03;
-                next_lsf.type[1] = 0x95;
+                //TODO: define the key length! this code sets it to 256-bit
+                type |= M17_TYPE_ENCR_AES | M17_TYPE_ENCR_AES256;
             }
             else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
             {
-                next_lsf.type[0] = 0x00;
-                next_lsf.type[1] = 0x00;
                 if (scrambler_subtype==0)
-                    next_lsf.type[1] = 0x0D;
+                    type |= M17_TYPE_ENCR_SCRAM_8;
                 else if (scrambler_subtype==1)
-                    next_lsf.type[1] = 0x2D;
+                    type |= M17_TYPE_ENCR_SCRAM_16;
                 else if (scrambler_subtype==2)
-                    next_lsf.type[1] = 0x4D;
-            }
-            else //no enc or subtype field, normal 3200 voice
-            {
-                next_lsf.type[0] = 0x00;
-                next_lsf.type[1] = 0x05;
+                    type |= M17_TYPE_ENCR_SCRAM_24;
             }
 
             //a signature key is loaded, OR this bit
             if(priv_key_loaded)
-                next_lsf.type[0] |= 0x8;
+                type |= M17_TYPE_SIGNED;
+
+            next_lsf.type[0]=(uint16_t)type>>8;
+            next_lsf.type[1]=(uint16_t)type&0xFF;
 
             finished = 0;
 
@@ -612,15 +575,7 @@ int main(int argc, char* argv[])
             fprintf(stderr, "\n");*/
 
             //send frame
-            frame_buff_cnt=0;
-            gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
-            extract_LICH(lich, lich_cnt, &lsf);
-            encode_LICH(lich_encoded, lich);
-            unpack_LICH(enc_bits, lich_encoded);
-            conv_encode_stream_frame(&enc_bits[96], data, fn);
-            reorder_bits(rf_bits, enc_bits);
-            randomize_bits(rf_bits);
-            gen_data(frame_buff, &frame_buff_cnt, rf_bits);
+            gen_frame(frame_buff, data, FRAME_STR, &lsf, lich_cnt, fn);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             fn = (fn + 1) % 0x8000; //increment FN
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
@@ -641,10 +596,8 @@ int main(int argc, char* argv[])
             {
                 lsf = next_lsf; 
 
-                //calculate LSF CRC
-                uint16_t ccrc=LSF_CRC(&lsf);
-                lsf.crc[0]=ccrc>>8;
-                lsf.crc[1]=ccrc&0xFF;
+                //update LSF CRC
+                update_LSF_CRC(&lsf);
             }
 
             memcpy(data, next_data, 16);
@@ -658,18 +611,9 @@ int main(int argc, char* argv[])
             fprintf(stderr, "\n");*/
 
             //send frame
-            frame_buff_cnt=0;
-            gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
-            extract_LICH(lich, lich_cnt, &lsf);
-            encode_LICH(lich_encoded, lich);
-            unpack_LICH(enc_bits, lich_encoded);
             if(!signed_str)
-                conv_encode_stream_frame(&enc_bits[96], data, (fn | 0x8000));
-            else
-                conv_encode_stream_frame(&enc_bits[96], data, fn);
-            reorder_bits(rf_bits, enc_bits);
-            randomize_bits(rf_bits);
-            gen_data(frame_buff, &frame_buff_cnt, rf_bits);
+                fn |= 0x8000;
+            gen_frame(frame_buff, data, FRAME_STR, &lsf, lich_cnt, fn);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
 
@@ -697,15 +641,7 @@ int main(int argc, char* argv[])
                         fprintf(stderr, "%02X", data[i]);
                     fprintf(stderr, "\n");*/
 
-                    frame_buff_cnt=0;
-                    gen_syncword(frame_buff, &frame_buff_cnt, SYNC_STR);
-                    extract_LICH(lich, lich_cnt, &lsf);
-                    encode_LICH(lich_encoded, lich);
-                    unpack_LICH(enc_bits, lich_encoded);
-                    conv_encode_stream_frame(&enc_bits[96], &sig[i*16], fn);
-                    reorder_bits(rf_bits, enc_bits);
-                    randomize_bits(rf_bits);
-                    gen_data(frame_buff, &frame_buff_cnt, rf_bits);
+                    gen_frame(frame_buff, &sig[i*16], FRAME_STR, &lsf, lich_cnt, fn);
                     fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
                     fn = (fn<0x7FFE) ? fn+1 : (0x7FFF|0x8000);
                     lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
@@ -758,7 +694,7 @@ int main(int argc, char* argv[])
 //decode debug with -- m17-fme -r -f scr.sym -v 1 -e 123456
 
 //AES (with file import)
-//encode debug with -- ./m17-coder-sym -D -K sample_aes_key.txt> float.sym
+//encode debug with -- ./m17-coder-sym -D -K sample_aes_key.txt > float.sym
 //decode debug with -- m17-fme -r -f float.sym -v 1 -J sample_aes_key.txt
 
 //Signatures
