@@ -67,9 +67,19 @@ uint8_t scr_bytes[16];
 uint8_t scrambler_pn[128];
 uint32_t scrambler_seed=0;
 int8_t scrambler_subtype = -1;
+int8_t aes_subtype = -1;
 
 //debug mode (preset lsf, type, fixed dummy payload for enc testing, etc)
 uint8_t debug_mode=0;
+
+//set scrambler subtype based on len of key at time of init
+int8_t scrambler_subtype_set(uint32_t scrambler_seed)
+{
+    if      (scrambler_seed > 0 && scrambler_seed <= 0xFF)          return 0; // 8-bit key
+    else if (scrambler_seed > 0xFF && scrambler_seed <= 0xFFFF)     return 1; //16-bit key
+    else if (scrambler_seed > 0xFFFF && scrambler_seed <= 0xFFFFFF) return 2; //24-bit key
+    else                                                            return 0; // 8-bit key (default)
+}
 
 //scrambler pn sequence generation
 void scrambler_sequence_generator()
@@ -77,16 +87,6 @@ void scrambler_sequence_generator()
   int i = 0;
   uint32_t lfsr, bit;
   lfsr = scrambler_seed;
-
-  //only set if not initially set (first run), it is possible (and observed) that the scrambler_subtype can 
-  //change on subsequent passes if the current SEED for the LFSR falls below one of these thresholds
-  if(scrambler_subtype == -1)
-  {
-    if      (lfsr > 0 && lfsr <= 0xFF)          scrambler_subtype = 0; // 8-bit key
-    else if (lfsr > 0xFF && lfsr <= 0xFFFF)     scrambler_subtype = 1; //16-bit key
-    else if (lfsr > 0xFFFF && lfsr <= 0xFFFFFF) scrambler_subtype = 2; //24-bit key
-    else                                        scrambler_subtype = 0; // 8-bit key (default)
-  }
 
   //TODO: Set Frame Type based on scrambler_subtype value
   if(debug_mode>1)
@@ -288,11 +288,20 @@ int main(int argc, char* argv[])
                         fclose(fp);
 
                         if(len==256/4)
+                        {
                             fprintf(stderr, "AES256");
+                            aes_subtype = 2;
+                        }
                         else if(len==192/4)
+                        {
                             fprintf(stderr, "AES192");
+                            aes_subtype = 1;
+                        }  
                         else if(len==128/4)
+                        {
                             fprintf(stderr, "AES128");
+                            aes_subtype = 0;
+                        } 
                         else
                         {
                             fprintf(stderr, "Invalid key length.\n");
@@ -316,11 +325,20 @@ int main(int argc, char* argv[])
                         size_t len = strlen(argv[i+1]);
 
                         if(len==256/4)
+                        {
                             fprintf(stderr, "AES256");
+                            aes_subtype = 2;
+                        }
                         else if(len==192/4)
+                        {
                             fprintf(stderr, "AES192");
+                            aes_subtype = 1;
+                        } 
                         else if(len==128/4)
+                        {
                             fprintf(stderr, "AES128");
+                            aes_subtype = 0;
+                        }
                         else
                         {
                             fprintf(stderr, "Invalid key length.\n");
@@ -369,6 +387,7 @@ int main(int argc, char* argv[])
                         fprintf(stderr, "Scrambler key: 0x%06X (24-bit)\n", scrambler_seed);
 
                     encryption=ENCR_SCRAM; //Scrambler key was passed
+                    scrambler_subtype = scrambler_subtype_set(scrambler_seed);
                     i++;
                 }
                 else if(argv[i][1]=='D') //-D - Debug Mode
@@ -419,11 +438,17 @@ int main(int argc, char* argv[])
 
         if(encryption==ENCR_AES) //AES ENC, 3200 voice
         {
-            //TODO: define the key length! this code sets it to 256-bit
-            type |= M17_TYPE_ENCR_AES | M17_TYPE_ENCR_AES256;
+            type |= M17_TYPE_ENCR_AES;
+            if (aes_subtype==0)
+                type |= M17_TYPE_ENCR_AES128;
+            else if (aes_subtype==1)
+                type |= M17_TYPE_ENCR_AES192;
+            else if (aes_subtype==2)
+                type |= M17_TYPE_ENCR_AES256;
         }
         else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
         {
+            type |= M17_TYPE_ENCR_SCRAM;
             if (scrambler_subtype==0)
                 type |= M17_TYPE_ENCR_SCRAM_8;
             else if (scrambler_subtype==1)
@@ -498,18 +523,24 @@ int main(int argc, char* argv[])
             encode_callsign_bytes(next_lsf.dst, (uint8_t*)"@ALL");
 
             //source  set to "N0CALL"
-            encode_callsign_bytes(next_lsf.dst, (uint8_t*)"N0CALL");
+            encode_callsign_bytes(next_lsf.src, (uint8_t*)"N0CALL");
 
             //no enc or subtype field, normal 3200 voice
             uint16_t type = M17_TYPE_STREAM | M17_TYPE_VOICE | M17_TYPE_CAN(0);
 
             if(encryption==ENCR_AES) //AES ENC, 3200 voice
             {
-                //TODO: define the key length! this code sets it to 256-bit
-                type |= M17_TYPE_ENCR_AES | M17_TYPE_ENCR_AES256;
+                type |= M17_TYPE_ENCR_AES;
+                if (aes_subtype==0)
+                    type |= M17_TYPE_ENCR_AES128;
+                else if (aes_subtype==1)
+                    type |= M17_TYPE_ENCR_AES192;
+                else if (aes_subtype==2)
+                    type |= M17_TYPE_ENCR_AES256;
             }
             else if(encryption==ENCR_SCRAM) //Scrambler ENC, 3200 Voice
             {
+                type |= M17_TYPE_ENCR_SCRAM;
                 if (scrambler_subtype==0)
                     type |= M17_TYPE_ENCR_SCRAM_8;
                 else if (scrambler_subtype==1)
@@ -529,7 +560,7 @@ int main(int argc, char* argv[])
 
             memset(next_data, 0, sizeof(next_data));
             memcpy(data, next_data, sizeof(data));
-            if(fn == 60)
+            if(fn == 59)
                 finished = 1;
 
             //debug sig with random payloads (don't play the audio)
@@ -553,7 +584,7 @@ int main(int argc, char* argv[])
             memcpy(&(next_lsf.meta), iv, 14);
             iv[14] = (fn >> 8) & 0x7F;
             iv[15] = (fn >> 0) & 0xFF;
-            aes_ctr_bytewise_payload_crypt(iv, key, data, AES128); //hardcoded for now
+            aes_ctr_bytewise_payload_crypt(iv, key, data, aes_subtype);
         }
 
         //Scrambler
