@@ -24,18 +24,15 @@ float sample;                       //last raw sample from the stdin
 float last[8];                      //look-back buffer for finding syncwords
 float dist;                         //Euclidean distance for finding syncwords in the symbol stream
 float pld[SYM_PER_PLD];             //raw frame symbols
-uint16_t soft_bit[2*SYM_PER_PLD];   //raw frame soft bits
-uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
 
-uint8_t lsf[30+1];                  //complete LSF (one byte extra needed for the Viterbi decoder)
+lsf_t lsf;                          //complete LSF
 uint16_t lich_chunk[96];            //raw, soft LSF chunk extracted from the LICH
-uint8_t lich_b[6];                  //48-bit decoded LICH
+uint8_t lich_b[5];                  //48-bit decoded LICH
 uint8_t lich_cnt;                   //LICH_CNT
 uint8_t lich_chunks_rcvd=0;         //flags set for each LSF chunk received
 uint16_t expected_next_fn=0;        //frame number of the next frame expected to arrive
 
-uint16_t enc_data[272];             //raw frame data soft bits
-uint8_t frame_data[19];             //decoded frame data, 144 bits (16+128), plus 4 flushing bits
+uint8_t frame_data[16];             //decoded frame data, 128 bits
 
 uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
@@ -524,31 +521,16 @@ int main(int argc, char* argv[])
 
             if(pushed==SYM_PER_PLD)
             {
-                //common operations for all frame types
-                //slice symbols to soft dibits
-                slice_symbols(soft_bit, pld);
-
-                //derandomize
-                randomize_soft_bits(soft_bit);
-
-                //deinterleave
-                reorder_soft_bits(d_soft_bit, soft_bit);
-
                 //if it is a frame
                 if(!fl)
                 {
-                    //extract data
-                    for(uint16_t i=0; i<272; i++)
-                    {
-                        enc_data[i]=d_soft_bit[96+i];
-                    }
+                    uint16_t fn;
 
                     //decode
-                    uint32_t e=viterbi_decode_punctured(frame_data, enc_data, puncture_pattern_2, 272, 12);
+                    uint32_t e = decode_str_frame(frame_data, lich_b, &fn, &lich_cnt, pld);
 
-                    uint16_t fn = (frame_data[1] << 8) | frame_data[2];
-                    uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
-                    signed_str=(type>>11)&1;
+                    uint16_t type = ((uint16_t)lsf.type[0]<<8)+lsf.type[1];
+                    signed_str = (type>>11)&1;
 
                     ///if the stream is signed (process before decryption)
                     if(signed_str && fn<0x7FFC)
@@ -557,7 +539,7 @@ int main(int argc, char* argv[])
                             memset(digest, 0, sizeof(digest));
 
                         for(uint8_t i=0; i<sizeof(digest); i++)
-                            digest[i]^=frame_data[3+i];
+                            digest[i]^=frame_data[i];
                         uint8_t tmp=digest[0];
                         for(uint8_t i=0; i<sizeof(digest)-1; i++)
                             digest[i]=digest[i+1];
@@ -570,14 +552,14 @@ int main(int argc, char* argv[])
                     //AES
                     if(encryption==ENCR_AES)
                     {
-                        memcpy(iv, lsf+14, 14);
-                        iv[14] = frame_data[1] & 0x7F;
-                        iv[15] = frame_data[2] & 0xFF;
+                        memcpy(iv, lsf.meta, 14);
+                        iv[14] = (fn>>8) & 0x7F; //TODO: check if this is the right byte order
+                        iv[15] = (fn&0xFF) & 0xFF;
 
                         if(signed_str && (fn % 0x8000)<0x7FFC) //signed stream
-                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, aes_subtype);
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data, aes_subtype);
                         else if(!signed_str)                    //non-signed stream
-                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data+3, aes_subtype);
+                            aes_ctr_bytewise_payload_crypt(iv, key, frame_data, aes_subtype);
                     }
 
                     //Scrambler
@@ -595,13 +577,13 @@ int main(int argc, char* argv[])
                         
                         for(uint8_t i=0; i<16; i++)
                         {
-                            frame_data[i+3] ^= scr_bytes[i];
+                            frame_data[i] ^= scr_bytes[i];
                         }
                     }
 
-                    //dump data - first byte is empty
+                    //dump data
                     printf("FN: %04X PLD: ", fn);
-                    for(uint8_t i=3; i<19; i++)
+                    for(uint8_t i=0; i<16; i++)
                     {
                         printf("%02X", frame_data[i]);
                     }
@@ -613,22 +595,12 @@ int main(int argc, char* argv[])
                     //send codec2 stream to stdout
                     //fwrite(&frame_data[3], 16, 1, stdout);
 
-                    //extract LICH
-                    for(uint16_t i=0; i<96; i++)
-                    {
-                        lich_chunk[i]=d_soft_bit[i];
-                    }
-
-                    //Golay decoder
-                    decode_LICH(lich_b, lich_chunk);
-                    lich_cnt=lich_b[5]>>5;
-
                     //If we're at the start of a superframe, or we missed a frame, reset the LICH state
                     if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn && fn<0x7FFC))
                         lich_chunks_rcvd=0;
 
                     lich_chunks_rcvd|=(1<<lich_cnt);
-                    memcpy(&lsf[lich_cnt*5], lich_b, 5);
+                    memcpy((uint8_t*)&lsf+lich_cnt*5, lich_b, 5);
 
                     //debug - dump LICH
                     if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
@@ -637,8 +609,8 @@ int main(int argc, char* argv[])
                         {
                             uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                            decode_callsign_bytes(d_dst, &lsf[0]);
-                            decode_callsign_bytes(d_src, &lsf[6]);
+                            decode_callsign_bytes(d_dst, lsf.dst);
+                            decode_callsign_bytes(d_src, lsf.src);
 
                             //DST
                             printf("DST: %-9s ", d_dst);
@@ -651,13 +623,13 @@ int main(int argc, char* argv[])
                             //DST
                             printf("DST: ");
                             for(uint8_t i=0; i<6; i++)
-                                printf("%02X", lsf[i]);
+                                printf("%02X", ((uint8_t*)lsf.dst)[i]);
                             printf(" ");
 
                             //SRC
                             printf("SRC: ");
                             for(uint8_t i=0; i<6; i++)
-                                printf("%02X", lsf[6+i]);
+                                printf("%02X", ((uint8_t*)lsf.src)[i]);
                             printf(" ");
                         }
 
@@ -712,7 +684,7 @@ int main(int argc, char* argv[])
                         {
                             printf("META: ");
                             for(uint8_t i=0; i<14; i++)
-                                printf("%02X", lsf[14+i]);
+                                printf("%02X", ((uint8_t*)lsf.meta)[i]);
                             printf(" ");
                         }
 
@@ -722,7 +694,7 @@ int main(int argc, char* argv[])
                             //printf("CRC: ");
                             //for(uint8_t i=0; i<2; i++)
                                 //printf("%02X", lsf[28+i]);
-                            if(CRC_M17(lsf, 30))
+                            if(CRC_M17((uint8_t*)&lsf, sizeof(lsf)))
                                 printf("LSF_CRC_ERR");
                             else
                                 printf("LSF_CRC_OK");
@@ -733,7 +705,7 @@ int main(int argc, char* argv[])
                     //if the contents of the payload is now digital signature, not data/voice
                     if(fn>=0x7FFC && signed_str)
                     {
-                        memcpy(&sig[((fn&0x7FFF)-0x7FFC)*16], &frame_data[3], 16);
+                        memcpy(&sig[((fn&0x7FFF)-0x7FFC)*16], frame_data, 16);
                         
                         if(fn==(0x7FFF|0x8000))
                         {
@@ -771,19 +743,15 @@ int main(int argc, char* argv[])
                     printf("{LSF} ");
 
                     //decode
-                    uint32_t e=viterbi_decode_punctured(lsf, d_soft_bit, puncture_pattern_1, 2*SYM_PER_PLD, 61);
-
-                    //shift the buffer 1 position left - get rid of the encoded flushing bits
-                    for(uint8_t i=0; i<30; i++)
-                        lsf[i]=lsf[i+1];
+                    uint32_t e = decode_LSF(&lsf, pld);
 
                     //dump data
                     if(decode_callsigns)
                     {
                         uint8_t d_dst[12], d_src[12]; //decoded strings
 
-                        decode_callsign_bytes(d_dst, &lsf[0]);
-                        decode_callsign_bytes(d_src, &lsf[6]);
+                        decode_callsign_bytes(d_dst, lsf.dst);
+                        decode_callsign_bytes(d_src, lsf.src);
 
                         //DST
                         printf("DST: %-9s ", d_dst);
@@ -796,18 +764,18 @@ int main(int argc, char* argv[])
                         //DST
                         printf("DST: ");
                         for(uint8_t i=0; i<6; i++)
-                            printf("%02X", lsf[i]);
+                            printf("%02X", ((uint8_t*)lsf.dst)[i]);
                         printf(" ");
 
                         //SRC
                         printf("SRC: ");
                         for(uint8_t i=0; i<6; i++)
-                            printf("%02X", lsf[6+i]);
+                            printf("%02X", ((uint8_t*)lsf.src)[i]);
                         printf(" ");
                     }
 
                     //TYPE
-                    uint16_t type=(uint16_t)lsf[12]*0x100+lsf[13]; //big-endian
+                    uint16_t type = ((uint16_t)lsf.type[0]<<8)+lsf.type[1];
                     printf("TYPE: %04X (", type);
                     if(type&&1)
                         printf("STREAM: ");
@@ -861,7 +829,7 @@ int main(int argc, char* argv[])
                     {
                         printf("META: ");
                         for(uint8_t i=0; i<14; i++)
-                            printf("%02X", lsf[14+i]);
+                            printf("%02X", ((uint8_t*)lsf.meta)[i]);
                         printf(" ");
                     }
 
@@ -871,7 +839,7 @@ int main(int argc, char* argv[])
                         //printf("CRC: ");
                         //for(uint8_t i=0; i<2; i++)
                             //printf("%02X", lsf[28+i]);
-                        if(CRC_M17(lsf, 30))
+                        if(CRC_M17((uint8_t*)&lsf, 30))
                             printf("LSF_CRC_ERR");
                         else
                             printf("LSF_CRC_OK");
