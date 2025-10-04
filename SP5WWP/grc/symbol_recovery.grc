@@ -1,11 +1,11 @@
 options:
   parameters:
-    author: SP5WWP
+    author: Wojciech SP5WWP
     catch_exceptions: 'True'
     category: '[GRC Hier Blocks]'
     cmake_opt: ''
     comment: ''
-    copyright: M17 Project, Jan 2024
+    copyright: M17 Foundation 2025
     description: ''
     gen_cmake: 'On'
     gen_linking: dynamic
@@ -37,7 +37,7 @@ blocks:
   id: variable
   parameters:
     comment: ''
-    value: '40'
+    value: int(1920000/48000)
   states:
     bus_sink: false
     bus_source: false
@@ -82,26 +82,24 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [392, 388.0]
+    coordinate: [568, 388.0]
     rotation: 0
     state: true
-- name: blocks_char_to_float_0
-  id: blocks_char_to_float
+- name: blocks_correctiq_0
+  id: blocks_correctiq
   parameters:
     affinity: ''
     alias: ''
     comment: ''
     maxoutbuf: '0'
     minoutbuf: '0'
-    scale: '128.0'
-    vlen: '1'
   states:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [216, 244.0]
+    coordinate: [224, 392.0]
     rotation: 0
-    state: disabled
+    state: true
 - name: blocks_file_sink_0
   id: blocks_file_sink
   parameters:
@@ -109,7 +107,7 @@ blocks:
     alias: ''
     append: 'False'
     comment: ''
-    file: /home/sp5wwp/Desktop/symb_fifo
+    file: /tmp/symb_fifo
     type: float
     unbuffered: 'True'
     vlen: '1'
@@ -117,93 +115,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1144, 180.0]
+    coordinate: [1288, 324.0]
     rotation: 0
     state: enabled
-- name: blocks_file_source_0
-  id: blocks_file_source
-  parameters:
-    affinity: ''
-    alias: ''
-    begin_tag: pmt.PMT_NIL
-    comment: ''
-    file: /dev/ttyUSB0
-    length: '0'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    offset: '0'
-    repeat: 'False'
-    type: byte
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [16, 212.0]
-    rotation: 0
-    state: disabled
-- name: blocks_file_source_0_0
-  id: blocks_file_source
-  parameters:
-    affinity: ''
-    alias: ''
-    begin_tag: pmt.PMT_NIL
-    comment: ''
-    file: debug_null_payload.bin
-    length: '2200'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    offset: '0'
-    repeat: 'False'
-    type: byte
-    vlen: '1'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [24, 500.0]
-    rotation: 0
-    state: disabled
-- name: blocks_repack_bits_bb_0
-  id: blocks_repack_bits_bb
-  parameters:
-    affinity: ''
-    alias: ''
-    align_output: 'False'
-    comment: ''
-    endianness: gr.GR_MSB_FIRST
-    k: '8'
-    l: '2'
-    len_tag_key: '""'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [216, 524.0]
-    rotation: 0
-    state: disabled
-- name: digital_chunks_to_symbols_xx_0
-  id: digital_chunks_to_symbols_xx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    dimension: '1'
-    in_type: byte
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    num_ports: '1'
-    out_type: float
-    symbol_table: (1.0, 3.0, -1.0, -3.0)
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [400, 536.0]
-    rotation: 0
-    state: disabled
 - name: digital_symbol_sync_xx_0
   id: digital_symbol_sync_xx
   parameters:
@@ -228,9 +142,33 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [824, 188.0]
+    coordinate: [968, 332.0]
     rotation: 0
     state: enabled
+- name: low_pass_filter_0
+  id: low_pass_filter
+  parameters:
+    affinity: ''
+    alias: ''
+    beta: '6.76'
+    comment: ''
+    cutoff_freq: 6.25e3
+    decim: decim
+    gain: '1'
+    interp: '1'
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    samp_rate: '1920000'
+    type: fir_filter_ccf
+    width: 6.25e3
+    win: window.WIN_HAMMING
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [384, 340.0]
+    rotation: 0
+    state: true
 - name: qtgui_eye_sink_x_0
   id: qtgui_eye_sink_x
   parameters:
@@ -261,7 +199,7 @@ blocks:
     comment: ''
     ctrlpanel: 'False'
     entags: 'True'
-    grid: 'False'
+    grid: 'True'
     gui_hint: ''
     label1: Signal 1
     label10: Signal 10
@@ -273,7 +211,7 @@ blocks:
     label7: Signal 7
     label8: Signal 8
     label9: Signal 9
-    legend: 'True'
+    legend: 'False'
     marker1: '-1'
     marker10: '-1'
     marker2: '-1'
@@ -324,7 +262,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1144, 268.0]
+    coordinate: [1288, 412.0]
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0
@@ -421,29 +359,9 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [824, 100.0]
+    coordinate: [968, 244.0]
     rotation: 0
     state: disabled
-- name: rational_resampler_xxx_0
-  id: rational_resampler_xxx
-  parameters:
-    affinity: ''
-    alias: ''
-    comment: ''
-    decim: decim
-    fbw: '0'
-    interp: '1'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    taps: '[]'
-    type: ccf
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [224, 364.0]
-    rotation: 0
-    state: true
 - name: root_raised_cosine_filter_0
   id: root_raised_cosine_filter
   parameters:
@@ -464,40 +382,16 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [560, 348.0]
+    coordinate: [736, 348.0]
     rotation: 0
     state: enabled
-- name: root_raised_cosine_filter_0_0
-  id: root_raised_cosine_filter
-  parameters:
-    affinity: ''
-    alias: ''
-    alpha: '0.5'
-    comment: ''
-    decim: '1'
-    gain: 1/0.12
-    interp: '1'
-    maxoutbuf: '0'
-    minoutbuf: '0'
-    ntaps: 8*5+1
-    samp_rate: '5'
-    sym_rate: '1'
-    type: fir_filter_fff
-  states:
-    bus_sink: false
-    bus_source: false
-    bus_structure: null
-    coordinate: [560, 204.0]
-    rotation: 0
-    state: disabled
 - name: soapy_rtlsdr_source_0
   id: soapy_rtlsdr_source
   parameters:
     affinity: ''
     agc: 'True'
     alias: ''
-    bias: 'False'
-    center_freq: '439950000'
+    center_freq: '433475000'
     comment: ''
     dev_args: ''
     freq_correction: '-2'
@@ -516,21 +410,13 @@ blocks:
 
 connections:
 - [analog_quadrature_demod_cf_0, '0', root_raised_cosine_filter_0, '0']
-- [blocks_char_to_float_0, '0', root_raised_cosine_filter_0_0, '0']
-- [blocks_file_source_0, '0', blocks_char_to_float_0, '0']
-- [blocks_file_source_0_0, '0', blocks_repack_bits_bb_0, '0']
-- [blocks_repack_bits_bb_0, '0', digital_chunks_to_symbols_xx_0, '0']
-- [digital_chunks_to_symbols_xx_0, '0', blocks_file_sink_0, '0']
-- [digital_chunks_to_symbols_xx_0, '0', qtgui_eye_sink_x_0, '0']
+- [blocks_correctiq_0, '0', low_pass_filter_0, '0']
 - [digital_symbol_sync_xx_0, '0', blocks_file_sink_0, '0']
 - [digital_symbol_sync_xx_0, '0', qtgui_eye_sink_x_0, '0']
-- [rational_resampler_xxx_0, '0', analog_quadrature_demod_cf_0, '0']
+- [low_pass_filter_0, '0', analog_quadrature_demod_cf_0, '0']
 - [root_raised_cosine_filter_0, '0', digital_symbol_sync_xx_0, '0']
 - [root_raised_cosine_filter_0, '0', qtgui_time_sink_x_0, '0']
-- [root_raised_cosine_filter_0_0, '0', digital_symbol_sync_xx_0, '0']
-- [root_raised_cosine_filter_0_0, '0', qtgui_time_sink_x_0, '0']
-- [soapy_rtlsdr_source_0, '0', rational_resampler_xxx_0, '0']
+- [soapy_rtlsdr_source_0, '0', blocks_correctiq_0, '0']
 
 metadata:
   file_format: 1
-  grc_version: 3.10.7.0
