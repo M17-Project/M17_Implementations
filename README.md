@@ -17,14 +17,9 @@ git clone --recursive https://github.com/M17-Project/M17_Implementations.git
 ```
 
 ### Building
-First, build the shared object `libm17.so`:
-```
-cd M17_Implementations/libm17
-make
-make install
-sudo ldconfig
-```
-Then, `cd` back up to the directory of interest (SP5WWP/m17-*) and ```make``` again.
+Prerequisites: [libm17](https://github.com/M17-Project/libm17), [libsndfile](https://github.com/libsndfile/libsndfile).
+
+`cd` to the directory of interest, then run `make`.
 
 ### Capabilities
 Four executables are available:

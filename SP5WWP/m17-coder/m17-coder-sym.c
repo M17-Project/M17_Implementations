@@ -5,7 +5,7 @@
 #include <time.h>
 
 //libm17
-#include "../../libm17/m17.h"
+#include <m17.h>
 //micro-ecc
 #include "../../micro-ecc/uECC.h"
 //tinier-aes
