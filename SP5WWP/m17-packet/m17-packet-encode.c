@@ -23,13 +23,13 @@ int len=3;                                                  //number of blocks p
 uint8_t enc_bits[SYM_PER_PLD*2];                            //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpacked
 
-uint8_t dst_raw[10]={'A', 'L', 'L', '\0'};                  //raw, unencoded destination address
-uint8_t src_raw[10]={'N', '0', 'C', 'A', 'L', 'L', '\0'};   //raw, unencoded source address
+uint8_t dst_raw[10]="@ALL";                                 //raw, unencoded destination address
+uint8_t src_raw[10]="N0CALL";                               //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
 uint16_t num_bytes=0;                                       //number of bytes in packet, max (33 frames * 25 bytes) - 2 (CRC) = 823
                                                             //Note: This value is 823 when using echo -en pre-encoded data or -R raw data as that already includes the protocol and 0x00 terminator
                                                             //When reading this string in from arg -T, the value is 821 as the 0x05 and 0x00 is added after the string conversion to octets
-uint8_t fname[128]={'\0'};                                  //output file
+uint8_t fname[128];                                         //output file
 
 FILE* fp;
 float full_packet[36*192*10];                               //full packet, symbols as floats - 36 "frames" max (incl. preamble, LSF, EoT), 192 symbols each, sps=10:
@@ -41,14 +41,14 @@ uint8_t full_packet_data[33*25];                            //full packet data, 
 
 typedef enum                                                //output file type
 {
-    OUT_TYPE_S16_RAW,                                       //0 - raw int16 filtered samples (.rrc) - default
+    OUT_TYPE_S16_RAW,                                       //0 - raw int16 filtered samples - default
     OUT_TYPE_S16_SYMB,                                      //1 - int16 symbol stream
     OUT_TYPE_BIN,                                           //2 - binary stream (TODO)
     OUT_TYPE_UPS_NO_FLT,                                    //3 - simple 10x upsample no filter
     OUT_TYPE_S16_RRC,                                       //4 - S16-LE RRC filtered wav file
     OUT_TYPE_FLOAT                                          //5 - float symbol output for m17-packet-decode
 } out_type_t;
-out_type_t out_type=OUT_TYPE_S16_RAW;                       //output file type - raw int16 filtered samples (.rrc) - default
+out_type_t out_type=OUT_TYPE_S16_RAW;                       //output file type - raw int16 filtered samples - default
 
 uint8_t std_encode = 1;                                     //User Data is pre-encoded and read in over stdin, and not a switch string
 uint8_t sms_encode = 0;                                     //User Supplied Data is an SMS Text message, encode as such
@@ -248,7 +248,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "-s - signed 16-bit LE symbols output\n");
         fprintf(stderr, "-f - float symbols output compatible with m17-packet-decode\n");
         fprintf(stderr, "-d - raw audio output - same as -r, but no RRC filtering (debug)\n");
-        fprintf(stderr, "-w - libsndfile audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
+        fprintf(stderr, "-w - libsndfile audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
         return -1;
     }
 
