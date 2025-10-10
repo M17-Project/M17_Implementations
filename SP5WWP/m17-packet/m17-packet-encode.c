@@ -32,7 +32,7 @@ uint16_t num_bytes=0;                                       //number of bytes in
 uint8_t fname[128];                                         //output file
 
 FILE* fp;
-float full_packet[36*192*10];                               //full packet, symbols as floats - 36 "frames" max (incl. preamble, LSF, EoT), 192 symbols each, sps=10:
+float full_packet[39*192*10];                               //full packet, symbols as floats - 39 "frames" max (incl. preamble, LSF, 1..4x EoT), 192 symbols each, sps=10:
                                                             //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
 uint32_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
 uint8_t pkt_cnt=0;                                          //packet frame counter (1..32) init'd at 0
@@ -53,6 +53,7 @@ out_type_t out_type=OUT_TYPE_S16_RAW;                       //output file type -
 uint8_t std_encode = 1;                                     //User Data is pre-encoded and read in over stdin, and not a switch string
 uint8_t sms_encode = 0;                                     //User Supplied Data is an SMS Text message, encode as such
 uint8_t raw_encode = 0;                                     //User Supplied Data is a string of hex octets, encode as such
+uint8_t extra_eot = 0;                                      //Append 3 extra EoT frames at the end?
 
 char   text[825] = "Default SMS Text message";              //SMS Text to Encode, default string.
 uint8_t raw[825];                                           //raw data that is converted from a string comprised of hex octets
@@ -200,6 +201,10 @@ int main(int argc, char* argv[])
                         return -1;
                     }
                 }
+                else if(argv[i][1]=='e') //-e - extra 3 EoT frames
+                {
+                    extra_eot = 1;
+                }
                 else if(argv[i][1]=='r') //-r - raw filtered output
                 {
                     out_type=OUT_TYPE_S16_RAW; //default
@@ -235,20 +240,21 @@ int main(int argc, char* argv[])
     else
     {
         fprintf(stderr, "Not enough params. Usage:\n");
-        fprintf(stderr, "-S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
-        fprintf(stderr, "-D - destination callsign (uppercase alphanumeric string) or ALL for broadcast,\n");
-        fprintf(stderr, "-C - Channel Access Number (0..15, default - 0),\n");
-        fprintf(stderr, "-T - SMS Text Message (example: -T \"Hello World! This is a text message\"),\n");
-        fprintf(stderr, "-R - Raw Hex Octets   (example: -R 010203040506070809),\n");
-        fprintf(stderr, "-n - number of bytes, only when pre-encoded data passed over stdin (1 to 823),\n");
-        fprintf(stderr, "-o - output file path/name,\n");
+        fprintf(stderr, " -S - source callsign (uppercase alphanumeric string) max. 9 characters,\n");
+        fprintf(stderr, " -D - destination callsign (uppercase alphanumeric string) or ALL for broadcast,\n");
+        fprintf(stderr, " -C - Channel Access Number (0..15, default - 0),\n");
+        fprintf(stderr, " -T - SMS Text Message (example: -T \"Hello World! This is a text message\"),\n");
+        fprintf(stderr, " -R - Raw Hex Octets   (example: -R 010203040506070809),\n");
+        fprintf(stderr, " -n - number of bytes, only when pre-encoded data passed over stdin (1 to 823),\n");
+        fprintf(stderr, " -o - output file path/name,\n");
+        fprintf(stderr, " -e - append 3 extra EoT frames\n");
         fprintf(stderr, "Output formats:\n");
         //fprintf(stderr, "-x - binary output (M17 baseband as a packed bitstream),\n");
-        fprintf(stderr, "-r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
-        fprintf(stderr, "-s - signed 16-bit LE symbols output\n");
-        fprintf(stderr, "-f - float symbols output compatible with m17-packet-decode\n");
-        fprintf(stderr, "-d - raw audio output - same as -r, but no RRC filtering (debug)\n");
-        fprintf(stderr, "-w - libsndfile audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
+        fprintf(stderr, " -r - raw audio output - default (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol),\n");
+        fprintf(stderr, " -s - signed 16-bit LE symbols output\n");
+        fprintf(stderr, " -f - float symbols output compatible with m17-packet-decode\n");
+        fprintf(stderr, " -d - raw audio output - same as -r, but no RRC filtering (debug)\n");
+        fprintf(stderr, " -w - libsndfile audio output (single channel, signed 16-bit LE, +7168 for the +1.0 symbol, 10 samples per symbol)\n");
         return -1;
     }
 
@@ -428,8 +434,13 @@ int main(int argc, char* argv[])
     }
     fprintf(stderr, "\n");
 
-    //send EOT
+    //send a single or extended EOT
     gen_eot(full_packet, &pkt_sym_cnt);
+    if(extra_eot == 1)
+    {
+        for(uint8_t i=0; i<3; i++)
+            gen_eot(full_packet, &pkt_sym_cnt);
+    }
 
     if (out_type == OUT_TYPE_UPS_NO_FLT || out_type == OUT_TYPE_S16_RRC) //open wav file out
     {
