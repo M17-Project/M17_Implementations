@@ -28,11 +28,23 @@ options:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [8, 8]
+    coordinate: [8, 4.0]
     rotation: 0
     state: enabled
 
 blocks:
+- name: afc_len
+  id: variable
+  parameters:
+    comment: ''
+    value: 480+1
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [432, 4.0]
+    rotation: 0
+    state: true
 - name: decim
   id: variable
   parameters:
@@ -42,7 +54,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [360, 12.0]
+    coordinate: [360, 4.0]
     rotation: 0
     state: enabled
 - name: sps
@@ -54,7 +66,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [288, 12.0]
+    coordinate: [288, 4.0]
     rotation: 0
     state: enabled
 - name: symbol_rate
@@ -66,9 +78,26 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [184, 12]
+    coordinate: [184, 4.0]
     rotation: 0
     state: enabled
+- name: afc
+  id: parameter
+  parameters:
+    alias: ''
+    comment: ''
+    hide: none
+    label: Automatic Frequency Control
+    short_id: a
+    type: intx
+    value: '0'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [512, 4.0]
+    rotation: 0
+    state: true
 - name: analog_quadrature_demod_cf_0
   id: analog_quadrature_demod_cf
   parameters:
@@ -83,6 +112,24 @@ blocks:
     bus_source: false
     bus_structure: null
     coordinate: [568, 388.0]
+    rotation: 0
+    state: true
+- name: blocks_add_xx_0
+  id: blocks_add_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1184, 336.0]
     rotation: 0
     state: true
 - name: blocks_correctiq_0
@@ -100,6 +147,25 @@ blocks:
     coordinate: [224, 392.0]
     rotation: 0
     state: true
+- name: blocks_delay_0
+  id: blocks_delay
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    delay: int((afc_len-1)/2)
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_ports: '1'
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [760, 392.0]
+    rotation: 0
+    state: true
 - name: blocks_file_sink_0
   id: blocks_file_sink
   parameters:
@@ -115,9 +181,83 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1288, 324.0]
+    coordinate: [1816, 284.0]
     rotation: 0
     state: enabled
+- name: blocks_moving_average_xx_0
+  id: blocks_moving_average_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    length: afc_len
+    max_iter: afc_len
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    scale: 1/afc_len
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [760, 468.0]
+    rotation: 0
+    state: true
+- name: blocks_multiply_const_vxx_0
+  id: blocks_multiply_const_vxx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    const: afc
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [1032, 420.0]
+    rotation: 0
+    state: true
+- name: blocks_multiply_const_vxx_1
+  id: blocks_multiply_const_vxx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    const: 1-afc
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [760, 332.0]
+    rotation: 0
+    state: true
+- name: blocks_sub_xx_0
+  id: blocks_sub_xx
+  parameters:
+    affinity: ''
+    alias: ''
+    comment: ''
+    maxoutbuf: '0'
+    minoutbuf: '0'
+    num_inputs: '2'
+    type: float
+    vlen: '1'
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [928, 408.0]
+    rotation: 0
+    state: true
 - name: digital_symbol_sync_xx_0
   id: digital_symbol_sync_xx
   parameters:
@@ -142,7 +282,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [968, 332.0]
+    coordinate: [1496, 292.0]
     rotation: 0
     state: enabled
 - name: low_pass_filter_0
@@ -201,7 +341,7 @@ blocks:
     entags: 'True'
     grid: 'True'
     gui_hint: ''
-    label1: Signal 1
+    label1: Eye diagram
     label10: Signal 10
     label2: Signal 2
     label3: Signal 3
@@ -262,7 +402,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [1288, 412.0]
+    coordinate: [1816, 372.0]
     rotation: 0
     state: enabled
 - name: qtgui_time_sink_x_0
@@ -359,7 +499,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [968, 244.0]
+    coordinate: [1496, 204.0]
     rotation: 0
     state: disabled
 - name: root_raised_cosine_filter_0
@@ -382,7 +522,7 @@ blocks:
     bus_sink: false
     bus_source: false
     bus_structure: null
-    coordinate: [736, 348.0]
+    coordinate: [1264, 308.0]
     rotation: 0
     state: enabled
 - name: soapy_rtlsdr_source_0
@@ -409,8 +549,16 @@ blocks:
     state: true
 
 connections:
-- [analog_quadrature_demod_cf_0, '0', root_raised_cosine_filter_0, '0']
+- [analog_quadrature_demod_cf_0, '0', blocks_delay_0, '0']
+- [analog_quadrature_demod_cf_0, '0', blocks_moving_average_xx_0, '0']
+- [analog_quadrature_demod_cf_0, '0', blocks_multiply_const_vxx_1, '0']
+- [blocks_add_xx_0, '0', root_raised_cosine_filter_0, '0']
 - [blocks_correctiq_0, '0', low_pass_filter_0, '0']
+- [blocks_delay_0, '0', blocks_sub_xx_0, '0']
+- [blocks_moving_average_xx_0, '0', blocks_sub_xx_0, '1']
+- [blocks_multiply_const_vxx_0, '0', blocks_add_xx_0, '1']
+- [blocks_multiply_const_vxx_1, '0', blocks_add_xx_0, '0']
+- [blocks_sub_xx_0, '0', blocks_multiply_const_vxx_0, '0']
 - [digital_symbol_sync_xx_0, '0', blocks_file_sink_0, '0']
 - [digital_symbol_sync_xx_0, '0', qtgui_eye_sink_x_0, '0']
 - [low_pass_filter_0, '0', analog_quadrature_demod_cf_0, '0']
