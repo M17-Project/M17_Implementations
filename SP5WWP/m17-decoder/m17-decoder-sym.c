@@ -588,7 +588,7 @@ int main(int argc, char* argv[])
                         printf("%02X", frame_data[i]);
                     }
                     if(show_viterbi_errs)
-                        printf(" e=%1.1f\n", (float)e/0xFFFF);
+                        printf(" e=%1.1f", (float)e/0xFFFF);
                     
                     printf("\n");
 
@@ -848,7 +848,7 @@ int main(int argc, char* argv[])
 
                     //Viterbi decoder errors
                     if(show_viterbi_errs)
-                        printf("e=%1.1f\n", (float)e/0xFFFF);
+                        printf("e=%1.1f", (float)e/0xFFFF);
 
                     printf("\n");
                 }
