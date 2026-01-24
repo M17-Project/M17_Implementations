@@ -23,8 +23,8 @@ int len=3;                                                  //number of blocks p
 uint8_t enc_bits[SYM_PER_PLD*2];                            //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpacked
 
-uint8_t dst_raw[10]="@ALL";                                 //raw, unencoded destination address
-uint8_t src_raw[10]="N0CALL";                               //raw, unencoded source address
+char dst_raw[10]="@ALL";                                    //raw, unencoded destination address
+char src_raw[10]="N0CALL";                                  //raw, unencoded source address
 uint8_t can=0;                                              //Channel Access Number, default: 0
 uint16_t num_bytes=0;                                       //number of bytes in packet, max (33 frames * 25 bytes) - 2 (CRC) = 823
                                                             //Note: This value is 823 when using echo -en pre-encoded data or -R raw data as that already includes the protocol and 0x00 terminator

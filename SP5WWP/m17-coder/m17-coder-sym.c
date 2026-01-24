@@ -428,10 +428,10 @@ int main(int argc, char* argv[])
     if(debug_mode==1)
     {
         //destination set to "@ALL"
-        encode_callsign_bytes(lsf.dst, (uint8_t*)"@ALL");
+        encode_callsign_bytes(lsf.dst, "@ALL");
 
         //source set to "N0CALL"
-        encode_callsign_bytes(lsf.src, (uint8_t*)"N0CALL");
+        encode_callsign_bytes(lsf.src, "N0CALL");
 
         //no enc or subtype field, normal 3200 voice
         uint16_t type = M17_TYPE_STREAM | M17_TYPE_VOICE | M17_TYPE_CAN(0);
@@ -520,10 +520,10 @@ int main(int argc, char* argv[])
         if(debug_mode==1)
         {
             //destination set to "ALL"
-            encode_callsign_bytes(next_lsf.dst, (uint8_t*)"@ALL");
+            encode_callsign_bytes(next_lsf.dst, "@ALL");
 
             //source  set to "N0CALL"
-            encode_callsign_bytes(next_lsf.src, (uint8_t*)"N0CALL");
+            encode_callsign_bytes(next_lsf.src, "N0CALL");
 
             //no enc or subtype field, normal 3200 voice
             uint16_t type = M17_TYPE_STREAM | M17_TYPE_VOICE | M17_TYPE_CAN(0);

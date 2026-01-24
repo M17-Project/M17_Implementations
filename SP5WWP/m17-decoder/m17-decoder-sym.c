@@ -607,7 +607,7 @@ int main(int argc, char* argv[])
                     {
                         if(decode_callsigns)
                         {
-                            uint8_t d_dst[12], d_src[12]; //decoded strings
+                            char d_dst[12], d_src[12]; //decoded strings
 
                             decode_callsign_bytes(d_dst, lsf.dst);
                             decode_callsign_bytes(d_src, lsf.src);
@@ -748,7 +748,7 @@ int main(int argc, char* argv[])
                     //dump data
                     if(decode_callsigns)
                     {
-                        uint8_t d_dst[12], d_src[12]; //decoded strings
+                        char d_dst[12], d_src[12]; //decoded strings
 
                         decode_callsign_bytes(d_dst, lsf.dst);
                         decode_callsign_bytes(d_src, lsf.src);
