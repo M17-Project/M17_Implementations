@@ -486,6 +486,7 @@ int main(int argc, char* argv[])
         dummy=fread(&(lsf.type), 2, 1, stdin);
         dummy=fread(&(lsf.meta), 14, 1, stdin);
         dummy=fread(data, 16, 1, stdin);
+        update_LSF_CRC(&lsf); //LSF fields were just replaced - recompute the CRC
     }
 
     //AES encryption enabled - use 112 bits of IV
