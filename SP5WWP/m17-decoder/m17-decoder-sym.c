@@ -600,7 +600,8 @@ int main(int argc, char* argv[])
                         lich_chunks_rcvd=0;
 
                     lich_chunks_rcvd|=(1<<lich_cnt);
-                    memcpy((uint8_t*)&lsf+lich_cnt*5, lich_b, 5);
+                    if(lich_cnt<6)
+                        memcpy((uint8_t*)&lsf+lich_cnt*5, lich_b, 5);
 
                     //debug - dump LICH
                     if(lich_chunks_rcvd==0x3F) //all 6 chunks received?
