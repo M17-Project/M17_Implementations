@@ -704,7 +704,7 @@ int main(int argc, char* argv[])
                     }
 
                     //if the contents of the payload is now digital signature, not data/voice
-                    if(fn>=0x7FFC && signed_str)
+                    if((fn&0x7FFF)>=0x7FFC)
                     {
                         memcpy(&sig[((fn&0x7FFF)-0x7FFC)*16], frame_data, 16);
                         
