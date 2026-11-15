@@ -18,7 +18,6 @@ lsf_t lsf;
 char wav_name[1024];                                        //name of wav file to output to
 SNDFILE *wav;                                               //sndfile wav file
 SF_INFO info;                                               //sndfile parameter struct
-int len=3;                                                  //number of blocks produced via counter +3 for pre,lsf, and eot marker
 
 uint8_t enc_bits[SYM_PER_PLD*2];                            //type-2 bits, unpacked
 uint8_t rf_bits[SYM_PER_PLD*2];                             //type-4 bits, unpacked
@@ -32,6 +31,7 @@ uint16_t num_bytes=0;                                       //number of bytes in
 uint8_t fname[128];                                         //output file
 
 FILE* fp;
+#define MAX_PKT_SYM     (39*192)                            //max symbols: preamble, LSF, 33 frames, 1..4x EoT, 192 symbols each
 float full_packet[39*192*10];                               //full packet, symbols as floats - 39 "frames" max (incl. preamble, LSF, 1..4x EoT), 192 symbols each, sps=10:
                                                             //pream, LSF, 32 frames, ending frame, EOT plus RRC flushing
 uint32_t pkt_sym_cnt=0;                                     //packet symbol counter, used to fill the packet
@@ -57,6 +57,7 @@ uint8_t extra_eot = 0;                                      //Append 3 extra EoT
 
 char   text[825] = "Default SMS Text message";              //SMS Text to Encode, default string.
 uint8_t raw[825];                                           //raw data that is converted from a string comprised of hex octets
+short ups_out[MAX_PKT_SYM*10];                              //10x upsampled output for the -d mode
 
 //convert a user string (as hex octets) into a uint8_t array
 uint16_t parse_raw_hex_string(uint8_t* dest, const char* inp)
@@ -69,7 +70,7 @@ uint16_t parse_raw_hex_string(uint8_t* dest, const char* inp)
 
     if(!(len%2)) //length even?
     {
-        for(uint8_t i=0; i<len; i+=2)
+        for(uint16_t i=0; i<len; i+=2)
         {
             if(inp[i]>='a')
                 dest[i/2]|=(inp[i]-'a'+10)*0x10;
@@ -95,7 +96,7 @@ uint16_t parse_raw_hex_string(uint8_t* dest, const char* inp)
         else if(inp[0]>='0')
             dest[0]|=inp[0]-'0';
 
-        for(uint8_t i=1; i<len-1; i+=2)
+        for(uint16_t i=1; i<len-1; i+=2)
         {
             if(inp[i]>='a')
                 dest[i/2+1]|=(inp[i]-'a'+10)*0x10;
@@ -128,6 +129,13 @@ int main(int argc, char* argv[])
         {
             if(argv[i][0]=='-')
             {
+                //options that take a value need one
+                if(strchr("DSCnTRo", argv[i][1])!=NULL && argv[i][1]!=0 && i+1>=argc)
+                {
+                    fprintf(stderr, "Missing value for -%c. Exiting...\n", argv[i][1]);
+                    return -1;
+                }
+
                 if(argv[i][1]=='D') //-D - destination
                 {
                     if(strlen(argv[i+1])<=9)
@@ -181,7 +189,12 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='R') //-R - Raw Octets
                 {
-                    if(strlen(&argv[i+1][0])>0)
+                    if(strlen(argv[i+1])>2*(825-2))
+                    {
+                        fprintf(stderr, "Raw data exceeding the maximum of 823 bytes. Exiting...\n");
+                        return -1;
+                    }
+                    else if(strlen(&argv[i+1][0])>0)
                     {
                         memset(raw, 0, sizeof(raw));
                         num_bytes=parse_raw_hex_string(raw, argv[i+1]);
@@ -193,8 +206,11 @@ int main(int argc, char* argv[])
                 }
                 else if(argv[i][1]=='o') //-o - output filename
                 {
-                    if(strlen(&argv[i+1][0])>0)
-                        memcpy(fname, &argv[i+1][0], strlen(argv[i+1]));
+                    if(strlen(argv[i+1])>0 && strlen(argv[i+1])<sizeof(fname))
+                    {
+                        memset(fname, 0, sizeof(fname));
+                        memcpy(fname, argv[i+1], strlen(argv[i+1]));
+                    }
                     else
                     {
                         fprintf(stderr, "Invalid filename. Exiting...\n");
@@ -456,7 +472,14 @@ int main(int argc, char* argv[])
         }
     }
     else //dump baseband to a file
+    {
         fp=fopen((const char*)fname, "wb");
+        if(fp==NULL)
+        {
+            fprintf(stderr, "Error - could not open output file %s\n", fname);
+            return -1;
+        }
+    }
     
     //debug mode - symbols multiplied by 7168 scaling factor
     /*for(uint16_t i=0; i<pkt_sym_cnt; i++)
@@ -521,28 +544,19 @@ int main(int argc, char* argv[])
     else if (out_type == OUT_TYPE_UPS_NO_FLT)
     {   
 
-        //array of upsample full_packet
-        float up[1920*35]; memset (up, 0, 1920*35*sizeof(float));
+        //write dead air to sndfile wav
+        memset(ups_out, 0, 1920*sizeof(short));
+        sf_write_short(wav, ups_out, 1920);
 
-        //10x upsample from full_packet to up
-        for (int i = 0; i < 192*len; i++)
+        //10x upsample of all symbols of the packet (preamble, LSF, frames, EoT)
+        for (uint32_t i = 0; i < pkt_sym_cnt; i++)
         {
             for (int j = 0; j < 10; j++)
-                up[(i*10)+j] = full_packet[i];
+                ups_out[(i*10)+j] = (short)(full_packet[i] * 7168.0f);
         }
 
-        //array of shorts for sndfile wav output
-        short bb[1920*35]; memset (bb, 0, 1920*35*sizeof(short));
-
-        //write dead air to sndfile wav
-        sf_write_short(wav, bb, 1920);
-
-        //load bb with upsample, use len to see how many we need to send
-        for (int i = 0; i < 1920*len; i++)
-            bb[i] = (short)(up[i] * 7168.0f);
-
         //write to sndfile wav
-        sf_write_short(wav, bb, 1920*len);
+        sf_write_short(wav, ups_out, pkt_sym_cnt*10);
     }
 
     //standard mode - filtered baseband (converted to wav)
