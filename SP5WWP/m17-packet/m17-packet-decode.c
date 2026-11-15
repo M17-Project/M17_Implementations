@@ -18,11 +18,11 @@ uint16_t d_soft_bit[2*SYM_PER_PLD]; //deinterleaved soft bits
 
 lsf_t lsf;                          //complete LSF
 uint8_t frame_data[26];             //decoded frame data, 206 bits
-uint8_t packet_data[33*25];         //whole packet data
+uint8_t packet_data[33*25+1];       //whole packet data, plus a terminating null for printing
 
 uint8_t syncd=0;                    //syncword found?
 uint8_t fl=0;                       //Frame=0 of LSF=1
-int8_t last_fn;                     //last received frame number (-1 when idle)
+int8_t last_fn=-1;                  //last received frame number (-1 when idle)
 uint8_t pushed;                     //counter for pushed symbols
 
 uint8_t skip_payload_crc_check=0;   //skip payload CRC check
@@ -152,12 +152,22 @@ int main(int argc, char* argv[])
                         memcpy(&packet_data[rx_fn*25], frame_data, 25);
                         last_fn++;
                     }
+                    else if(rx_last && (rx_fn<1 || rx_fn>25))
+                    {
+                        //the last frame carries the number of bytes in it, 1..25
+                        if(!text_only)
+                            fprintf(stderr, " \033[91mInvalid last frame byte count (%d), packet dropped\033[39m\n", rx_fn);
+                        last_fn=-1;
+                        memset(packet_data, 0, sizeof(packet_data));
+                    }
                     else if(rx_last)
                     {
-                        memcpy(&packet_data[(last_fn+1)*25], frame_data, rx_fn<25 ? rx_fn : 25);  //prevent copying too much data (beyond frame_data end)
-                        uint16_t p_len=strlen((const char*)packet_data);
+                        memcpy(&packet_data[(last_fn+1)*25], frame_data, rx_fn);
+                        uint16_t p_len=(last_fn+1)*25+rx_fn;   //whole packet, including the 2-byte CRC
+                        packet_data[p_len]=0;                   //the text is always terminated, even without a null in the packet
+                        uint8_t crc_ok=(p_len>=3 && CRC_M17(packet_data, p_len)==0);
 
-                        if(show_errorless==0 || (show_errorless==1 && CRC_M17(packet_data, p_len+3)==0))
+                        if(show_errorless==0 || (show_errorless==1 && crc_ok))
                         {
                             fprintf(stderr, " \033[93mContent\033[39m\n");
 
@@ -182,7 +192,7 @@ int main(int argc, char* argv[])
 
                                     //CRC
                                     fprintf(stderr, " └ \033[93mPayload CRC:\033[39m");
-                                    if(CRC_M17(packet_data, p_len+3)) //3: terminating null plus a 2-byte CRC
+                                    if(!crc_ok)
                                         fprintf(stderr, " \033[91mmismatch\033[39m\n");
                                     else
                                         fprintf(stderr, " \033[92mmatch\033[39m\n");
@@ -193,7 +203,7 @@ int main(int argc, char* argv[])
                                 if(!text_only)
                                 {
                                     fprintf(stderr, " └ \033[93mPayload:\033[39m ");
-                                    for(uint16_t i=0; i<(last_fn+1)*25+rx_fn; i++)
+                                    for(uint16_t i=0; i<p_len; i++)
                                     {
                                         if(i!=0 && (i%25)==0)
                                             fprintf(stderr, "\n     ");
@@ -203,6 +213,10 @@ int main(int argc, char* argv[])
                                 }
                             }
                         }
+
+                        //packet complete, the next one starts from frame 0
+                        last_fn=-1;
+                        memset(packet_data, 0, sizeof(packet_data));
                     }
                 }
                 else //if it is LSF
