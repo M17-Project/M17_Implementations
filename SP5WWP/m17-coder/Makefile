@@ -1,5 +1,5 @@
 m17-coder-sym: m17-coder-sym.c
-	gcc -O2 -Wall -Wextra m17-coder-sym.c ../../micro-ecc/uECC.c ../../tinier-aes/aes.c ../../m17sig/m17sig.c -o m17-coder-sym -lm -lm17
+	gcc -O2 -Wall -Wextra m17-coder-sym.c ../../micro-ecc/uECC.c ../../tinier-aes/aes.c ../../m17sig/m17sig.c ../../sha-2/sha-256.c -I../../sha-2 -o m17-coder-sym -lm -lm17
 
 install:
 	sudo cp m17-coder-sym /usr/local/bin

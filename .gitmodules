@@ -4,3 +4,6 @@
 [submodule "micro-ecc"]
 	path = micro-ecc
 	url = https://github.com/M17-Project/micro-ecc
+[submodule "sha-2"]
+	path = sha-2
+	url = https://github.com/amosnier/sha-2
