@@ -67,7 +67,7 @@ Terminal 2 should show similar results, with the Frame Number advancing each fra
 ##### Signatures and encryption
 `m17-coder-sym` and `m17-decoder-sym` now offer support for ECDSA (secp256r1 256-bit prime field Weierstrass curve) stream signing and verification, AES (128, 192, 256-bit) and scrambler (8, 16, 24-bit) stream payload encryption. See relevant input parameters below and `sample_*` text files provided in `m17-coder-sym` and `m17-decoder-sym` folders.
 
-The signature occupies 4 last data frames of the stream. It is generated after the data transmission has finished. When there's no more user data to transmit, a hash based on all the contents is calculated. That hash value is then signed with the user's private key.
+Signed streams follow M17 Specification 2.1.0. A SHA-256 hash is calculated over the Frame Number and the payload (as transmitted) of every frame. When there's no more user data to transmit, an Authentication Frame (FN `0x7FFB`) carrying the signer (source) callsign, the destination and the time of signing is sent and added to the hash. The hash is then signed with the user's private key, and the signature occupies the 4 last frames of the stream. The decoder reports the verification result, the signer, the destination and the time of signing (checked against the system clock), and warns when the signer is not the originator of the stream. Signatures from versions using the old XOR digest do not verify. The hash code is in `m17sig/`, shared with the other M17 Project implementations.
 
 Stream encoding (m17-decoder-sym) has optional input parameters, shown below.
 ```

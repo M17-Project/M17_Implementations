@@ -8,6 +8,7 @@
 #include <m17.h>
 //micro-ecc
 #include "../../micro-ecc/uECC.h"
+#include "../../m17sig/m17sig.h"
 //tinier-aes
 #include "../../tinier-aes/aes.h"
 
@@ -33,7 +34,7 @@ uint8_t got_lsf=0;                  //have we transmitted the LSF yet?
 uint8_t finished=0;                 //no more data at stdin?
 
 //used for signatures
-uint8_t digest[16]={0};             //16-byte field for the stream digest
+m17sig_ctx_t sig_ctx;               //stream hash (M17 spec 2.1.0)
 uint8_t signed_str=0;               //is the stream supposed to be signed?
 uint8_t priv_key_loaded=0;          //do we have a sig key loaded?
 uint8_t priv_key[32]={0};           //private key
@@ -226,7 +227,7 @@ int main(int argc, char* argv[])
                         }
 
                         FILE* fp;
-                        char source_str[32*2];
+                        char source_str[32*2+1]={0}; //+1: NUL terminator for parse_raw_key_string()
 
                         fp = fopen(argv[i+1], "r");
                         if(!fp)
@@ -274,7 +275,7 @@ int main(int argc, char* argv[])
                         }
 
                         FILE* fp;
-                        char source_str[64];
+                        char source_str[64+1]={0}; //+1: NUL terminator for parse_raw_key_string()
 
                         fp = fopen(argv[i+1], "r");
                         if(!fp)
@@ -419,6 +420,7 @@ int main(int argc, char* argv[])
     }
 
     const struct uECC_Curve_t* curve = uECC_secp256r1();
+    m17sig_init(&sig_ctx); //stream hash, used if the stream is signed
 
     //send out the preamble
     frame_buff_cnt=0;
@@ -602,26 +604,20 @@ int main(int argc, char* argv[])
         {
             //debug payload dump
             /*fprintf(stderr, "ENC-Payload %04X: ", fn);
-            for(uint8_t i=0; i<sizeof(digest); i++)
+            for(uint8_t i=0; i<16; i++)
                 fprintf(stderr, "%02X", data[i]);
             fprintf(stderr, "\n");*/
 
             //send frame
             gen_frame(frame_buff, data, FRAME_STR, &lsf, lich_cnt, fn);
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+
+            //update the stream hash if required (FN and payload as transmitted)
+            if(signed_str)
+                m17sig_frame(&sig_ctx, fn, data);
+
             fn = (fn + 1) % 0x8000; //increment FN
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
-
-            //update the stream digest if required
-            if(signed_str)
-            {
-                for(uint8_t i=0; i<sizeof(digest); i++)
-                    digest[i]^=data[i];
-                uint8_t tmp=digest[0];
-                for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                    digest[i]=digest[i+1];
-                digest[sizeof(digest)-1]=tmp;
-            }
 
             //update LSF every 6 frames (superframe boundary)
             if(fn>0 && lich_cnt==0)
@@ -638,7 +634,7 @@ int main(int argc, char* argv[])
         {
             //debug data dump
             /*fprintf(stderr, "ENC-Payload %04X: ", fn);
-            for(uint8_t i=0; i<sizeof(digest); i++)
+            for(uint8_t i=0; i<16; i++)
                 fprintf(stderr, "%02X", data[i]);
             fprintf(stderr, "\n");*/
 
@@ -649,19 +645,29 @@ int main(int argc, char* argv[])
             fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
             lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
 
-            //if we are done, and the stream is signed, so we need to transmit the signature (4 frames)
+            //if we are done, and the stream is signed, so we need to transmit
+            //the Authentication Frame and the signature (4 frames)
             if(signed_str)
             {
-                //update digest
-                for(uint8_t i=0; i<sizeof(digest); i++)
-                    digest[i]^=data[i];
-                uint8_t tmp=digest[0];
-                for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                    digest[i]=digest[i+1];
-                digest[sizeof(digest)-1]=tmp;
+                //update the stream hash with the last data frame
+                m17sig_frame(&sig_ctx, fn, data);
 
-                //sign the digest
-                uECC_sign(priv_key, digest, sizeof(digest), sig, curve);
+                //Authentication Frame (FN 0x7FFB): signer, destination, time of signing - not encrypted
+                uint8_t auth[16];
+                m17sig_auth_build(auth, lsf.src, lsf.dst, (uint32_t)(time(NULL) - epoch));
+                gen_frame(frame_buff, auth, FRAME_STR, &lsf, lich_cnt, M17SIG_FN_AUTH);
+                fwrite((uint8_t*)frame_buff, SYM_PER_FRA*sizeof(float), 1, stdout);
+                lich_cnt = (lich_cnt + 1) % 6; //continue with next LICH_CNT
+                m17sig_frame(&sig_ctx, M17SIG_FN_AUTH, auth);
+
+                //sign the stream hash
+                uint8_t hash[M17SIG_HASH_LEN];
+                m17sig_final(&sig_ctx, hash);
+                if(!uECC_sign(priv_key, hash, sizeof(hash), sig, curve))
+                {
+                    fprintf(stderr, "Signing failed - the signature will not verify\n");
+                    memset(sig, 0, sizeof(sig));
+                }
 
                 //4 frames with 512-bit signature
                 fn = 0x7FFC; //signature has to start at 0x7FFC to end at 0x7FFF (0xFFFF with EoT marker set)
@@ -669,7 +675,7 @@ int main(int argc, char* argv[])
                 {
                     //dump payload
                     /*fprintf(stderr, "ENC-Payload %04X: ", fn);
-                    for(uint8_t i=0; i<sizeof(digest); i++)
+                    for(uint8_t i=0; i<16; i++)
                         fprintf(stderr, "%02X", data[i]);
                     fprintf(stderr, "\n");*/
 
@@ -680,9 +686,9 @@ int main(int argc, char* argv[])
                 }
 
                 //dump data
-                /*fprintf(stderr, "ENC-Digest: ");
-                for(uint8_t i=0; i<sizeof(digest); i++)
-                    fprintf(stderr, "%02X", digest[i]);
+                /*fprintf(stderr, "ENC-Hash: ");
+                for(uint8_t i=0; i<sizeof(hash); i++)
+                    fprintf(stderr, "%02X", hash[i]);
                 fprintf(stderr, "\n");
 
                 fprintf(stderr, "Key: ");

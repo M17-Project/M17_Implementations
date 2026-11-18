@@ -8,6 +8,7 @@
 #include <m17.h>
 //micro-ecc
 #include "../../micro-ecc/uECC.h"
+#include "../../m17sig/m17sig.h"
 //tinier-aes
 #include "../../tinier-aes/aes.h"
 
@@ -39,7 +40,11 @@ uint8_t fl=0;                       //Frame=0 of LSF=1
 uint8_t pushed;                     //counter for pushed symbols
 
 //used for signatures
-uint8_t digest[16]={0};             //16-byte field for the stream digest
+m17sig_ctx_t sig_ctx;               //stream hash (M17 spec 2.1.0)
+uint8_t hash_ok=0;                  //the hash covers every frame from FN 0 (no late entry, no gaps)
+uint8_t auth_seen=0;                //Authentication Frame received
+uint8_t auth[16]={0};               //Authentication Frame payload
+#define SIG_TIME_WINDOW 300         //s, accepted Timestamp offset (spec default)
 uint8_t signed_str=0;               //is the stream signed?
 uint8_t pub_key[64]={0};            //public key
 uint8_t sig[64]={0};                //ECDSA signature
@@ -246,6 +251,35 @@ void parse_raw_key_string(uint8_t* dest, const char* inp)
     }
 }
 
+//Authentication Frame contents (M17 spec 2.1.0, Receiver Display): signer, destination, time of signing
+//checked against the system clock, and a warning when the signer is not the originator named by the LSD
+void print_auth(const uint8_t a[16])
+{
+    uint8_t signer[6], dst[6];
+    uint32_t ts;
+    char s_call[12]={0}, d_call[12]={0}, o_call[12]={0}, when[32];
+
+    m17sig_auth_parse(a, signer, dst, &ts);
+    decode_callsign_bytes(s_call, signer);
+    decode_callsign_bytes(d_call, dst);
+
+    //originator: Callsign Field 1 of the Extended Callsign Data if present, SRC otherwise
+    uint16_t type = ((uint16_t)lsf.type[0]<<8)+lsf.type[1];
+    const uint8_t* orig = (((type>>3)&3)==0 && ((type>>5)&3)==2) ? &lsf.meta[0] : lsf.src;
+    decode_callsign_bytes(o_call, orig);
+
+    time_t t = (time_t)M17SIG_EPOCH + (time_t)ts;
+    struct tm utc;
+    gmtime_r(&t, &utc);
+    strftime(when, sizeof(when), "%Y-%m-%d %H:%M:%S UTC", &utc);
+    long age = (long)(time(NULL) - t);
+
+    printf("Signer: %s, Destination: %s, Signed: %s (%s, %+ld s vs. the system clock)\n", s_call, d_call, when,
+        (age > SIG_TIME_WINDOW || age < -SIG_TIME_WINDOW) ? "STALE" : "time OK", age);
+    if(memcmp(signer, orig, 6))
+        printf("WARNING: the signer is not the originator %s\n", o_call);
+}
+
 int main(int argc, char* argv[])
 {
     if(argc>1) //arg scanning: not foolproof at all
@@ -294,7 +328,7 @@ int main(int argc, char* argv[])
                     }
 
                     FILE* fp;
-                    char source_str[64*2];
+                    char source_str[64*2+1]={0}; //+1: NUL terminator for parse_raw_key_string()
 
                     fp = fopen(argv[i+1], "r");
                     if(!fp)
@@ -342,7 +376,7 @@ int main(int argc, char* argv[])
                     }
 
                     FILE* fp;
-                    char source_str[64];
+                    char source_str[64+1]={0}; //+1: NUL terminator for parse_raw_key_string()
 
                     fp = fopen(argv[i+1], "r");
                     if(!fp)
@@ -532,21 +566,32 @@ int main(int argc, char* argv[])
                     uint16_t type = ((uint16_t)lsf.type[0]<<8)+lsf.type[1];
                     signed_str = (type>>11)&1;
 
-                    ///if the stream is signed (process before decryption)
-                    if(signed_str && fn<0x7FFC)
+                    //signed streams end with the Authentication Frame (FN 0x7FFB) and 4 signature frames
+                    uint8_t auth_frame = signed_str && (fn&0x7FFF)==M17SIG_FN_AUTH;
+                    uint8_t sig_frame = signed_str && (fn&0x7FFF)>=M17SIG_FN_SIG;
+
+                    //stream hash over the FN and the payload as received (process before decryption)
+                    if(signed_str && !sig_frame)
                     {
                         if(fn==0)
-                            memset(digest, 0, sizeof(digest));
+                        {
+                            m17sig_init(&sig_ctx);
+                            hash_ok=1;
+                            auth_seen=0;
+                        }
+                        else if(!auth_frame && (fn % 0x8000)!=expected_next_fn)
+                            hash_ok=0; //a frame is missing: the hash can't be rebuilt
 
-                        for(uint8_t i=0; i<sizeof(digest); i++)
-                            digest[i]^=frame_data[i];
-                        uint8_t tmp=digest[0];
-                        for(uint8_t i=0; i<sizeof(digest)-1; i++)
-                            digest[i]=digest[i+1];
-                        digest[sizeof(digest)-1]=tmp;
+                        m17sig_frame(&sig_ctx, fn, frame_data);
+
+                        if(auth_frame)
+                        {
+                            memcpy(auth, frame_data, 16);
+                            auth_seen=1;
+                        }
                     }
 
-                    //NOTE: Don't attempt decryption when a signed stream is >= 0x7FFC
+                    //NOTE: Don't attempt decryption of the Authentication Frame and the signature (>= 0x7FFB)
                     //The Signature is not encrypted
                     
                     //AES
@@ -556,7 +601,7 @@ int main(int argc, char* argv[])
                         iv[14] = (fn>>8) & 0x7F; //TODO: check if this is the right byte order
                         iv[15] = (fn&0xFF) & 0xFF;
 
-                        if(signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                        if(signed_str && (fn % 0x8000)<M17SIG_FN_AUTH) //signed stream
                             aes_ctr_bytewise_payload_crypt(iv, key, frame_data, aes_subtype);
                         else if(!signed_str)                    //non-signed stream
                             aes_ctr_bytewise_payload_crypt(iv, key, frame_data, aes_subtype);
@@ -569,7 +614,7 @@ int main(int argc, char* argv[])
                             scrambler_seed = scrambler_seed_calculation(scrambler_subtype, scrambler_key, fn&0x7FFF);
                         else if(fn == 0) scrambler_seed = scrambler_key; //reset back to key value
 
-                        if(signed_str && (fn % 0x8000)<0x7FFC) //signed stream
+                        if(signed_str && (fn % 0x8000)<M17SIG_FN_AUTH) //signed stream
                             scrambler_sequence_generator();
                         else if(!signed_str)                    //non-signed stream
                             scrambler_sequence_generator();
@@ -596,7 +641,7 @@ int main(int argc, char* argv[])
                     //fwrite(&frame_data[3], 16, 1, stdout);
 
                     //If we're at the start of a superframe, or we missed a frame, reset the LICH state
-                    if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn && fn<0x7FFC))
+                    if((lich_cnt==0) || ((fn % 0x8000)!=expected_next_fn && fn<0x7FFC && !auth_frame))
                         lich_chunks_rcvd=0;
 
                     lich_chunks_rcvd|=(1<<lich_cnt);
@@ -704,16 +749,16 @@ int main(int argc, char* argv[])
                     }
 
                     //if the contents of the payload is now digital signature, not data/voice
-                    if((fn&0x7FFF)>=0x7FFC)
+                    if(sig_frame)
                     {
-                        memcpy(&sig[((fn&0x7FFF)-0x7FFC)*16], frame_data, 16);
+                        memcpy(&sig[((fn&0x7FFF)-M17SIG_FN_SIG)*16], frame_data, 16);
                         
                         if(fn==(0x7FFF|0x8000))
                         {
                             //dump data
-                            /*printf("DEC-Digest: ");
-                            for(uint8_t i=0; i<sizeof(digest); i++)
-                                printf("%02X", digest[i]);
+                            /*printf("DEC-Hash: ");
+                            for(uint8_t i=0; i<sizeof(hash); i++)
+                                printf("%02X", hash[i]);
                             printf("\n");
 
                             printf("Key: ");
@@ -726,13 +771,25 @@ int main(int argc, char* argv[])
                                 printf("%02X", sig[i]);
                             printf("\n");*/
 
-                            if(uECC_verify(pub_key, digest, sizeof(digest), sig, curve))
+                            if(!hash_ok || !auth_seen)
                             {
-                                printf("Signature OK\n");
+                                printf("Signature not verified (frames missing or late entry)\n");
                             }
                             else
                             {
-                                printf("Signature invalid\n");
+                                uint8_t hash[M17SIG_HASH_LEN];
+                                m17sig_final(&sig_ctx, hash);
+
+                                if(uECC_verify(pub_key, hash, sizeof(hash), sig, curve))
+                                {
+                                    printf("Signature OK\n");
+                                }
+                                else
+                                {
+                                    printf("Signature invalid\n");
+                                }
+
+                                print_auth(auth);
                             }
                         }
                     }
